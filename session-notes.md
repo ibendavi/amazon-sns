@@ -69,5 +69,95 @@
 9. Purina Friskies Shreds ×2 - $38.30
 10. Lavazza Espresso 2-pack - $34.19
 
-## Price Comparison Results
-(to be filled in)
+## Price Comparison Results (2026-02-26)
+
+| Item | S&S (mgmt page) | Current S&S | One-Time | S&S Savings | Coupon |
+|------|-----------------|-------------|----------|-------------|--------|
+| Har Bracha Tahini 12pk | $94.97 | $94.97 | $99.97 | $5.00 (5%) | none |
+| Gillette Clinical Cool Wave 3pk (×2) | $43.32 | $43.32 | $50.97 | $7.65 (15%) | none |
+| Gillette Clinical Arctic Ice 3pk* | $11.02/unit | $30.57/3pk | $35.97/3pk | $5.40/3pk (15%) | none |
+| Dr. Elsey's Cat Litter 40lb (×4) | $20.69 | $20.69 | $22.99 | $2.30 (10%) | none |
+| Triple Strength Fish Oil 180ct | $48.81 | **$45.01** | $52.95 | $7.94 (15%) | none |
+| Presto Toilet Paper 24pk (×3) | $24.64 | $24.64 | $28.99 | $4.35 (15%) | none |
+| Lavazza Espresso 2-pack | $34.19 | $34.19 | $37.99 | $3.80 (10%) | none |
+| Mucinex 48 tab | $27.79 | $27.79 | $32.69 | $4.90 (15%) | none |
+| Sensodyne Pronamel 4pk | $21.24 | $21.24 | $24.99 | $3.75 (15%) | none |
+
+## Key Findings
+
+### 1. Fish Oil Price Drop
+- S&S mgmt page shows $48.81 but product page shows **$45.01** S&S
+- Saving $3.80/order = $15.20/year (every 3 months)
+- May already be applied automatically to next delivery
+
+### 2. Gillette Arctic Ice: Switch singles to 3-pack
+- Currently buying 8 individual units at $11.02 each = **$88.16/delivery**
+- 3-pack S&S is $30.57 = $10.19/unit
+- If switched to 3 × 3-pack = 9 units for $91.71 (one extra unit)
+- Or 2 × 3-pack + 2 singles = 8 units for $83.18
+- **Potential savings: ~$5-7 per delivery**
+
+### 3. Duplicate Lavazza Espresso Subscriptions
+- Item 37: Lavazza Espresso single 2.2lb - $19.54/mo
+- Item 43: Lavazza Espresso 2-pack 2.2lb - $34.19/mo
+- Item 44: Lavazza Espresso single 2.2lb - $19.54/mo
+- **You're getting 4 bags/month ($73.27).** Is that intentional?
+- 2-pack at $34.19 = $17.10/bag is cheaper than singles at $19.54/bag
+- Could save $4.88/mo ($58.56/year) by switching to 2× 2-pack instead
+
+### 4. Duplicate Febreze AIR Subscriptions
+- Item 6: Active at $18.94
+- Item 24: UNAVAILABLE (same product)
+- Should cancel the unavailable duplicate
+
+### 5. No Coupons Found
+- None of the checked items had active coupons on their product pages
+
+### 6. Overall Assessment
+- S&S discounts are genuine (5-15% below one-time prices)
+- No items found where one-time purchase is cheaper than S&S
+- Main savings opportunities: consolidate Lavazza to 2-packs, switch Gillette Arctic Ice to 3-packs
+
+## Changes Made (2026-02-26)
+
+### 1. Skipped unavailable Febreze from March 10 delivery
+- Item 24 (FBRZ AIR Linen&Sky, UNAVAILABLE) skipped for this delivery
+- Delivery went from 47 → 46 items
+
+### 2. Cancelled first Lavazza Espresso single (Item 37)
+- subscriptionId: SNSD0_TVSEWJRVDKKRTFT0R3RD
+- Was $19.54/mo for 1 bag
+- Delivery went from 46 → 45 items
+
+### 3. Cancelled second Lavazza Espresso single (Item 44)
+- subscriptionId: SNST0_094312D496FA486A8355
+- Was $19.54/mo for 1 bag
+- Delivery went from 45 → 44 items
+
+### 4. Increased Lavazza Espresso 2-pack quantity to 2 (Item 43)
+- subscriptionId: SNST0_044D5812E04A4519ACC1
+- Changed from 1 → 2 units, still every 1 month
+- Now getting 4 bags/month via 2× 2-pack = $68.38/mo
+- **Previously:** 4 bags/month at $73.27 (2 singles + 1 two-pack)
+- **Now:** 4 bags/month at $68.38 (2× two-pack)
+- **Monthly savings: $4.89 ($58.68/year)**
+
+### 5. Cancelled duplicate Febreze AIR subscription
+- subscriptionId: SNSA0_XGZGQKXRZGAKPHPHVR96
+- Was a duplicate of the active Febreze subscription (SNSA0_06QM1FCESTM2EEGFDZC0)
+- Reason: "This was created by accident"
+- The active subscription (Item 6, $18.94, every 6 months) remains
+
+### 6. Gillette Arctic Ice 3-pack switch — NOT DONE
+- No Clinical Soft Solid Arctic Ice 3-pack available via Amazon's "Switch product" feature
+- Only option was a non-Clinical Clear Gel variant (different formulation)
+- Left as-is: 8 singles × $11.02 = $88.16 every 6 months
+- Revisit if Amazon adds a Clinical Arctic Ice 3-pack in the future
+
+### Summary of savings
+- Lavazza consolidation: ~$4.89/month = **$58.68/year**
+- Cleaned up 2 duplicate/unnecessary subscriptions
+
+## GitHub Repo
+- https://github.com/ibendavi/amazon-sns
+- GitHub Pages: https://ibendavi.github.io/amazon-sns/
