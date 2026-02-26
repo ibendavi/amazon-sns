@@ -269,16 +269,7 @@
     // --- Actions ---
     function saveSelections() {
       saveState();
-      const toSkip = items.filter(i => !state[i.id]).map(i => ({ id: i.id, name: i.name }));
-      const toKeep = items.filter(i => state[i.id]).map(i => ({ id: i.id, name: i.name }));
-      const data = { delivery: "2026-03-10", toSkip, toKeep, savedAt: new Date().toISOString() };
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = 'sns-selections.json';
-      a.click();
-      URL.revokeObjectURL(a.href);
-      showToast('Selections saved & downloaded');
+      showToast('Selections saved! Use "Share Link" to sync with another device.');
     }
 
     function shareLink() {
