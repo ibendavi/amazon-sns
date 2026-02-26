@@ -4,19 +4,25 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Amazon Subscribe & Save - March 10 Delivery</title>
+  <link rel="icon" href="https://www.amazon.com/favicon.ico">
+  <link rel="apple-touch-icon" href="https://www.amazon.com/favicon.ico">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; color: #333; padding: 20px; }
     h1 { font-size: 1.5rem; margin-bottom: 4px; }
     .subtitle { color: #666; margin-bottom: 6px; font-size: 0.9rem; }
     .deadline { color: #d32f2f; font-weight: 600; margin-bottom: 16px; font-size: 0.9rem; }
-    .controls { display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; align-items: center; }
-    .controls button { padding: 8px 16px; border: 1px solid #ccc; border-radius: 6px; background: #fff; cursor: pointer; font-size: 0.85rem; }
+    .controls { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; align-items: center; }
+    .controls button { padding: 8px 14px; border: 1px solid #ccc; border-radius: 6px; background: #fff; cursor: pointer; font-size: 0.82rem; }
     .controls button:hover { background: #e8e8e8; }
     .controls button.primary { background: #ff9900; color: #fff; border-color: #e88a00; font-weight: 600; }
     .controls button.primary:hover { background: #e88a00; }
     .controls button.danger { background: #fff; color: #d32f2f; border-color: #d32f2f; }
     .controls button.danger:hover { background: #fde8e8; }
+    .controls button.optimize { background: #146eb4; color: #fff; border-color: #0f5a94; font-weight: 600; }
+    .controls button.optimize:hover { background: #0f5a94; }
+    .controls button.share { background: #fff; color: #146eb4; border-color: #146eb4; }
+    .controls button.share:hover { background: #e8f0fe; }
     .summary { background: #fff; border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); font-size: 0.9rem; }
     .summary span { font-weight: 600; }
     .item-list { list-style: none; }
@@ -28,25 +34,40 @@
     .item-name { font-weight: 500; font-size: 0.95rem; }
     .item-meta { font-size: 0.8rem; color: #777; margin-top: 2px; }
     .item-price { font-weight: 600; color: #111; white-space: nowrap; flex-shrink: 0; }
-    .item-qty { font-size: 0.8rem; color: #555; flex-shrink: 0; margin-left: 4px; }
+    .price-badge { font-size: 0.7rem; padding: 2px 6px; border-radius: 4px; margin-left: 6px; font-weight: 600; }
+    .price-badge.good { background: #e6f4ea; color: #1e7e34; }
+    .price-badge.unchecked { background: #fff3e0; color: #e65100; }
     .unavailable { color: #d32f2f; font-style: italic; font-size: 0.8rem; }
     .vet-note { color: #e65100; font-style: italic; font-size: 0.8rem; }
     .output-section { margin-top: 20px; background: #fff; border-radius: 8px; padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); display: none; }
     .output-section h3 { margin-bottom: 8px; font-size: 1rem; }
-    .output-section pre { background: #f9f9f9; padding: 12px; border-radius: 6px; font-size: 0.85rem; white-space: pre-wrap; max-height: 300px; overflow-y: auto; }
-    .search { padding: 8px 12px; border: 1px solid #ccc; border-radius: 6px; font-size: 0.9rem; width: 200px; }
+    .output-section pre { background: #f9f9f9; padding: 12px; border-radius: 6px; font-size: 0.85rem; white-space: pre-wrap; max-height: 400px; overflow-y: auto; }
+    .search { padding: 8px 12px; border: 1px solid #ccc; border-radius: 6px; font-size: 0.9rem; width: 180px; }
+    .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: #333; color: #fff; padding: 10px 24px; border-radius: 8px; font-size: 0.9rem; z-index: 999; opacity: 0; transition: opacity 0.3s; pointer-events: none; }
+    .toast.show { opacity: 1; }
+    .opt-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin-top: 8px; }
+    .opt-table th { text-align: left; padding: 6px 8px; border-bottom: 2px solid #ddd; font-weight: 600; }
+    .opt-table td { padding: 6px 8px; border-bottom: 1px solid #eee; }
+    .opt-table tr.saving td { background: #e6f4ea; }
+    .opt-table tr.nodata td { background: #fff8e1; }
+    .opt-summary { margin: 12px 0; padding: 10px 14px; background: #e8f5e9; border-radius: 6px; font-size: 0.9rem; }
+    .opt-summary strong { color: #1b5e20; }
+    .opt-copy { margin-top: 12px; padding: 8px 16px; background: #ff9900; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-weight: 600; }
+    .opt-copy:hover { background: #e88a00; }
   </style>
 </head>
 <body>
   <h1>Amazon Subscribe & Save</h1>
-  <div class="subtitle">March 10, 2026 Delivery &mdash; 47 items</div>
+  <div class="subtitle">March 10, 2026 Delivery &mdash; <span id="itemCount">44</span> items</div>
   <div class="deadline">Last day to edit: Wednesday, March 4</div>
 
   <div class="controls">
     <button onclick="selectAll()">Select All</button>
     <button onclick="deselectAll()">Deselect All</button>
-    <button class="primary" onclick="saveSelections()">Save Selections</button>
-    <button class="danger" onclick="showSkipList()">Show Items to Skip</button>
+    <button class="primary" onclick="saveSelections()">Save</button>
+    <button class="share" onclick="shareLink()">Share Link</button>
+    <button class="danger" onclick="showSkipList()">Skip List</button>
+    <button class="optimize" onclick="optimizePrices()">Optimize Prices</button>
     <input type="text" class="search" placeholder="Filter items..." oninput="filterItems(this.value)">
   </div>
 
@@ -58,6 +79,13 @@
     <h3>Items to SKIP on Amazon:</h3>
     <pre id="skipOutput"></pre>
   </div>
+
+  <div class="output-section" id="optimizeSection">
+    <h3>Price Optimization Report</h3>
+    <div id="optimizeOutput"></div>
+  </div>
+
+  <div class="toast" id="toast"></div>
 
   <script>
     const items = [
@@ -72,7 +100,7 @@
       { id: 9, name: "Hill's Prescription Diet t/d Cat Food (8.5 lb)", price: "Vet approval needed", qty: 1, freq: "", note: "vet" },
       { id: 10, name: "Purina Cat Chow Naturals Indoor (13 lb)", price: "$16.13", qty: 1, freq: "1 month" },
       { id: 11, name: "Energizer 123 Lithium Batteries (6 pack)", price: "$11.05", qty: 1, freq: "6 months" },
-      { id: 12, name: "Sensodyne Pronamel Whitening Toothpaste (4-pack)", price: "$19.82", qty: 1, freq: "6 months" },
+      { id: 12, name: "Sensodyne Pronamel Whitening Toothpaste (4-pack)", price: "$21.24", qty: 1, freq: "6 months" },
       { id: 13, name: "Presto! Toilet Paper (24 Family Mega Rolls)", price: "$24.64", qty: 3, freq: "1 month" },
       { id: 14, name: "Gillette Clinical Deodorant Cool Wave (3-pack)", price: "$43.32", qty: 2, freq: "3 months" },
       { id: 15, name: "Lysol Disinfectant Wipes (4-pack)", price: "$19.65", qty: 1, freq: "6 months" },
@@ -84,9 +112,8 @@
       { id: 21, name: "Energizer Ultimate Lithium 9V (2 pack)", price: "$26.50", qty: 1, freq: "3 months" },
       { id: 22, name: "Blue Diamond Wasabi & Soy Sauce Almonds (16 oz)", price: "$6.79", qty: 1, freq: "1 month" },
       { id: 23, name: "Carlyle Melatonin 12mg (180 tablets)", price: "$8.54", qty: 1, freq: "6 months" },
-      { id: 24, name: "Febreze AIR Linen & Sky (6-pack)", price: "", qty: 1, freq: "", note: "unavailable" },
       { id: 25, name: "Scotch Magic Tape (6 rolls w/ dispensers)", price: "$13.33", qty: 1, freq: "4 months" },
-      { id: 26, name: "Triple Strength Fish Oil Omega 3 (180 softgels)", price: "$48.81", qty: 1, freq: "3 months" },
+      { id: 26, name: "Triple Strength Fish Oil Omega 3 (180 softgels)", price: "$45.01", qty: 1, freq: "3 months" },
       { id: 27, name: "Vicks VapoShower Plus (12 count)", price: "$21.79", qty: 1, freq: "3 months" },
       { id: 28, name: "PUREPLUS 9690 Refrigerator Water Filter (4 pack)", price: "$27.38", qty: 1, freq: "2 months" },
       { id: 29, name: "Har Bracha Tahini Paste (12 pack)", price: "$94.97", qty: 1, freq: "2 months" },
@@ -97,43 +124,86 @@
       { id: 34, name: "Dove White Peach Body Scrub (15 oz)", price: "$6.77", qty: 1, freq: "6 months" },
       { id: 35, name: "Blue Diamond Dark Chocolate Almonds (25 oz)", price: "$9.76", qty: 2, freq: "1 month" },
       { id: 36, name: "Dr. Elsey's Ultra Unscented Cat Litter (40 lb)", price: "$20.69", qty: 4, freq: "6 months" },
-      { id: 37, name: "Lavazza Espresso Whole Bean Coffee (2.2 lb)", price: "$19.54", qty: 1, freq: "1 month" },
       { id: 38, name: "Oral-B Glide Floss Pro-Health Mint (3-pack)", price: "$9.47", qty: 1, freq: "6 months" },
       { id: 39, name: "GUM Soft-Picks Advanced (90ct, 3-pack)", price: "$19.79", qty: 1, freq: "5 months" },
       { id: 40, name: "Endangered Species Dark Chocolate 88% (12 bars)", price: "$47.49", qty: 1, freq: "3 months" },
       { id: 41, name: "Amazon Basics Liquid Hand Soap Refill (2-pack)", price: "$8.02", qty: 1, freq: "2 months" },
       { id: 42, name: "Lebanon Valley Tahineh (32 oz)", price: "", qty: 1, freq: "", note: "unavailable" },
-      { id: 43, name: "Lavazza Espresso Whole Bean Coffee (2-pack)", price: "$34.19", qty: 1, freq: "1 month" },
-      { id: 44, name: "Lavazza Espresso Whole Bean Coffee (single)", price: "$19.54", qty: 1, freq: "1 month" },
+      { id: 43, name: "Lavazza Espresso Whole Bean Coffee (2-pack)", price: "$34.19", qty: 2, freq: "1 month" },
       { id: 45, name: "Gillette Clinical Deodorant Arctic Ice (2.6 oz)", price: "$11.02", qty: 8, freq: "6 months" },
       { id: 46, name: "Biotrue Contact Solution (10oz, 2-pack)", price: "$14.44", qty: 1, freq: "5 months" },
       { id: 47, name: "Brawny Tear-A-Square Paper Towels (12 XL Rolls)", price: "$26.77", qty: 1, freq: "3 months" },
     ];
 
-    // Load saved state from localStorage
+    // Price comparison data from 2026-02-26 check
+    const priceData = {
+      1:  { oneTime: 32.69, sns: 27.79, pct: 15, checked: "2026-02-26" },
+      12: { oneTime: 24.99, sns: 21.24, pct: 15, checked: "2026-02-26" },
+      13: { oneTime: 28.99, sns: 24.64, pct: 15, checked: "2026-02-26" },
+      14: { oneTime: 50.97, sns: 43.32, pct: 15, checked: "2026-02-26" },
+      26: { oneTime: 52.95, sns: 45.01, pct: 15, checked: "2026-02-26", note: "Price dropped from $48.81" },
+      29: { oneTime: 99.97, sns: 94.97, pct: 5,  checked: "2026-02-26" },
+      36: { oneTime: 22.99, sns: 20.69, pct: 10, checked: "2026-02-26" },
+      43: { oneTime: 37.99, sns: 34.19, pct: 10, checked: "2026-02-26" },
+      45: { oneTime: 12.96, sns: 11.02, pct: 15, checked: "2026-02-26" },
+    };
+
+    // --- State management: URL hash + localStorage ---
+    function encodeState(st) {
+      const unchecked = items.filter(i => !st[i.id]).map(i => i.id);
+      return unchecked.join(',');
+    }
+
+    function decodeHash(hash) {
+      const st = {};
+      items.forEach(i => st[i.id] = true);
+      if (hash) {
+        hash.split(',').forEach(s => {
+          const n = parseInt(s);
+          if (!isNaN(n)) st[n] = false;
+        });
+      }
+      return st;
+    }
+
     function loadState() {
+      const hash = window.location.hash;
+      if (hash.startsWith('#s=')) {
+        const st = decodeHash(hash.substring(3));
+        localStorage.setItem('sns-march2026', JSON.stringify(st));
+        return st;
+      }
       const saved = localStorage.getItem('sns-march2026');
       if (saved) return JSON.parse(saved);
-      // Default: all checked
-      const state = {};
-      items.forEach(i => state[i.id] = true);
-      return state;
+      const st = {};
+      items.forEach(i => st[i.id] = true);
+      return st;
     }
 
     let state = loadState();
 
     function saveState() {
       localStorage.setItem('sns-march2026', JSON.stringify(state));
+      const enc = encodeState(state);
+      history.replaceState(null, '', enc ? '#s=' + enc : window.location.pathname);
     }
 
+    // Sync when URL hash changes (e.g. back/forward)
+    window.addEventListener('hashchange', () => {
+      state = loadState();
+      renderItems(document.querySelector('.search').value);
+    });
+
+    // --- Rendering ---
     function renderItems(filter = '') {
       const list = document.getElementById('itemList');
       list.innerHTML = '';
       const lowerFilter = filter.toLowerCase();
+      let idx = 0;
 
       items.forEach(item => {
         if (filter && !item.name.toLowerCase().includes(lowerFilter)) return;
-
+        idx++;
         const checked = state[item.id];
         const li = document.createElement('li');
         li.className = 'item' + (checked ? '' : ' unchecked');
@@ -142,11 +212,17 @@
         if (item.note === 'unavailable') noteHtml = '<span class="unavailable">Temporarily Unavailable</span>';
         if (item.note === 'vet') noteHtml = '<span class="vet-note">Vet approval required</span>';
 
+        const pd = priceData[item.id];
+        let badgeHtml = '';
+        if (pd) {
+          badgeHtml = `<span class="price-badge good">S&S saves ${pd.pct}%</span>`;
+        }
+
         li.innerHTML = `
-          <span class="item-num">${item.id}</span>
+          <span class="item-num">${idx}</span>
           <input type="checkbox" ${checked ? 'checked' : ''} onchange="toggle(${item.id}, this.checked)" id="cb-${item.id}">
           <div class="item-details">
-            <div class="item-name">${item.name}</div>
+            <div class="item-name">${item.name}${badgeHtml}</div>
             <div class="item-meta">${item.freq ? 'Every ' + item.freq : ''}${item.qty > 1 ? ' &middot; Qty: ' + item.qty : ''} ${noteHtml}</div>
           </div>
           <span class="item-price">${item.price}</span>
@@ -154,6 +230,7 @@
         list.appendChild(li);
       });
 
+      document.getElementById('itemCount').textContent = items.length;
       updateSummary();
     }
 
@@ -189,9 +266,9 @@
       `;
     }
 
+    // --- Actions ---
     function saveSelections() {
       saveState();
-      // Write selections to a JSON file via download
       const toSkip = items.filter(i => !state[i.id]).map(i => ({ id: i.id, name: i.name }));
       const toKeep = items.filter(i => state[i.id]).map(i => ({ id: i.id, name: i.name }));
       const data = { delivery: "2026-03-10", toSkip, toKeep, savedAt: new Date().toISOString() };
@@ -201,6 +278,17 @@
       a.download = 'sns-selections.json';
       a.click();
       URL.revokeObjectURL(a.href);
+      showToast('Selections saved & downloaded');
+    }
+
+    function shareLink() {
+      saveState();
+      const url = window.location.href;
+      navigator.clipboard.writeText(url).then(() => {
+        showToast('Link copied! Share it to sync selections.');
+      }).catch(() => {
+        prompt('Copy this link to share selections:', url);
+      });
     }
 
     function showSkipList() {
@@ -210,14 +298,94 @@
       if (toSkip.length === 0) {
         output.textContent = 'No items to skip - all items are selected for delivery.';
       } else {
-        output.textContent = toSkip.map(i => `#${i.id}: ${i.name}`).join('\n');
+        output.textContent = toSkip.map((item, i) => `${i + 1}. ${item.name}`).join('\n');
       }
+      document.getElementById('optimizeSection').style.display = 'none';
       section.style.display = 'block';
       section.scrollIntoView({ behavior: 'smooth' });
     }
 
+    function optimizePrices() {
+      const selected = items.filter(i => state[i.id] && i.price && !i.note);
+      const out = document.getElementById('optimizeOutput');
+
+      // Build checked vs unchecked lists
+      const checked = selected.filter(i => priceData[i.id]);
+      const unchecked = selected.filter(i => !priceData[i.id]);
+
+      let totalSnsSavings = 0;
+      let totalOneTime = 0;
+
+      let html = '<table class="opt-table"><tr><th>Item</th><th>S&S</th><th>One-Time</th><th>You Save</th><th>Checked</th></tr>';
+
+      checked.forEach(item => {
+        const pd = priceData[item.id];
+        const unitSave = (pd.oneTime - pd.sns).toFixed(2);
+        const lineSave = (unitSave * item.qty).toFixed(2);
+        totalSnsSavings += parseFloat(lineSave);
+        totalOneTime += pd.oneTime * item.qty;
+        const noteHtml = pd.note ? ` <span style="color:#e65100;font-size:0.75rem">${pd.note}</span>` : '';
+        html += `<tr class="saving">
+          <td>${item.name}${item.qty > 1 ? ' &times;' + item.qty : ''}${noteHtml}</td>
+          <td>$${pd.sns.toFixed(2)}</td>
+          <td>$${pd.oneTime.toFixed(2)}</td>
+          <td style="color:#1b5e20;font-weight:600">$${lineSave} (${pd.pct}%)</td>
+          <td>${pd.checked}</td>
+        </tr>`;
+      });
+
+      unchecked.forEach(item => {
+        html += `<tr class="nodata">
+          <td>${item.name}${item.qty > 1 ? ' &times;' + item.qty : ''}</td>
+          <td>${item.price}</td>
+          <td>?</td>
+          <td>Not checked</td>
+          <td>-</td>
+        </tr>`;
+      });
+
+      html += '</table>';
+
+      html += `<div class="opt-summary">
+        <strong>${checked.length}</strong> of ${selected.length} items price-checked.
+        S&S is saving you at least <strong>$${totalSnsSavings.toFixed(2)}</strong> per delivery vs one-time purchases on checked items.
+        ${unchecked.length > 0 ? `<br><strong>${unchecked.length}</strong> items still need price checking (highlighted yellow).` : ''}
+      </div>`;
+
+      html += `<button class="opt-copy" onclick="copyForPriceCheck()">Copy unchecked items for price check</button>`;
+
+      out.innerHTML = html;
+      document.getElementById('outputSection').style.display = 'none';
+      document.getElementById('optimizeSection').style.display = 'block';
+      document.getElementById('optimizeSection').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function copyForPriceCheck() {
+      const selected = items.filter(i => state[i.id] && i.price && !i.note && !priceData[i.id]);
+      if (selected.length === 0) {
+        showToast('All selected items have been price-checked!');
+        return;
+      }
+      let text = 'Please price-check these Amazon Subscribe & Save items (compare S&S vs one-time price, look for coupons):\n\n';
+      selected.forEach((item, i) => {
+        text += `${i + 1}. ${item.name} - S&S: ${item.price}${item.qty > 1 ? ' x' + item.qty : ''}, every ${item.freq}\n`;
+      });
+      navigator.clipboard.writeText(text).then(() => {
+        showToast(`${selected.length} items copied! Paste into Claude Code.`);
+      }).catch(() => {
+        prompt('Copy this text:', text);
+      });
+    }
+
     function filterItems(val) {
       renderItems(val);
+    }
+
+    function showToast(msg) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), 2500);
     }
 
     // Initial render
