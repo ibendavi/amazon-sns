@@ -54,6 +54,8 @@
     .alt-name { font-weight: 500; }
     .alt-meta { color: #777; font-size: 0.78rem; }
     .alt-savings { color: #1e7e34; font-weight: 600; font-size: 0.78rem; }
+    .alt-savings.more-expensive { color: #d32f2f; }
+    .alt-recommended { display: inline-block; background: #1e7e34; color: #fff; font-size: 0.68rem; font-weight: 600; padding: 1px 6px; border-radius: 3px; margin-left: 6px; }
     .alt-switch { padding: 3px 10px; border: 1px solid #146eb4; border-radius: 4px; background: #fff; color: #146eb4; cursor: pointer; font-size: 0.75rem; margin-left: 8px; }
     .alt-switch:hover { background: #e8f0fe; }
     .alt-switch.selected { background: #146eb4; color: #fff; }
@@ -358,17 +360,22 @@
         let altHtml = '';
         if (item.alternatives && item.alternatives.length > 0) {
           const altId = 'alt-' + item.id;
-          altHtml = `<div class="alt-toggle" onclick="toggleAlts('${altId}')">Alternatives (${item.alternatives.length})</div>`;
+          const hasRec = item.alternatives.some(a => a.recommended);
+          altHtml = `<div class="alt-toggle" onclick="toggleAlts('${altId}')">Alternatives (${item.alternatives.length})${hasRec ? ' \u2014 cheaper option available' : ''}</div>`;
           altHtml += `<div class="alt-list" id="${altId}">`;
           item.alternatives.forEach(alt => {
             const isSelected = altPreferences[item.id] === alt.name;
             const escapedName = alt.name.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+            const recBadge = alt.recommended ? '<span class="alt-recommended">Best price</span>' : '';
+            const metaParts = [alt.price];
+            if (alt.unitPrice) metaParts.push(alt.unitPrice);
+            const savingsClass = alt.savings && alt.savings.includes('more') ? 'alt-savings more-expensive' : 'alt-savings';
             altHtml += `
               <div class="alt-item">
                 <div class="alt-info">
-                  <div class="alt-name">${alt.name}</div>
-                  <div class="alt-meta">${alt.price} &middot; ${alt.unitPrice}${alt.note ? ' &middot; ' + alt.note : ''}</div>
-                  ${alt.savings ? '<div class="alt-savings">' + alt.savings + '</div>' : ''}
+                  <div class="alt-name">${alt.name}${recBadge}</div>
+                  <div class="alt-meta">${metaParts.join(' &middot; ')}</div>
+                  ${alt.savings ? '<div class="' + savingsClass + '">' + alt.savings + '</div>' : ''}
                 </div>
                 <button class="alt-switch${isSelected ? ' selected' : ''}" onclick="switchAlt(${item.id}, '${escapedName}')">
                   ${isSelected ? 'Selected' : 'Switch'}
@@ -382,6 +389,7 @@
         const pd = priceData[item.id];
         let badgeHtml = '';
         if (pd && pd.savingsPct) badgeHtml = `<span class="price-badge">S&amp;S saves ${pd.savingsPct}%</span>`;
+        if (pd && pd.unitPrice) badgeHtml += `<span class="price-badge">${pd.unitPrice}</span>`;
 
         li.innerHTML = `
           <span class="item-num">${idx}</span>

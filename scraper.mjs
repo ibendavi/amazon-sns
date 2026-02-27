@@ -161,7 +161,7 @@ async function scrapeProductPage(page, asin) {
   await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
   await randomDelay(2000, 5000);
 
-  const result = { snsPrice: null, oneTimePrice: null, savingsPct: null, coupons: [] };
+  const result = { snsPrice: null, oneTimePrice: null, savingsPct: null, unitPrice: '', coupons: [] };
 
   // Use page.evaluate to extract prices in-page where we can inspect context
   const prices = await page.evaluate(() => {
@@ -245,6 +245,30 @@ async function scrapeProductPage(page, asin) {
   result.snsPrice = prices.sns;
   result.oneTimePrice = prices.oneTime;
 
+  // Extract unit price separately (more reliable selectors)
+  result.unitPrice = await page.evaluate(() => {
+    const selectors = ['.pricePerUnit', '.a-size-small.a-color-base.a-text-normal', '.a-size-mini.pricePerUnit'];
+    for (const sel of selectors) {
+      const el = document.querySelector(sel);
+      if (!el) continue;
+      const t = el.textContent || '';
+      const m = t.match(/\(\$(\d+\.?\d*)\$?\d*\.?\d*\s*\/\s*([\w\s]+)\)/);
+      if (m) return '$' + m[1] + '/' + m[2].trim();
+    }
+    // Broader fallback: any element with "per" and "$" and "/"
+    const all = document.querySelectorAll('span');
+    for (const el of all) {
+      const t = el.textContent.trim();
+      if (t.length > 50 || !t.includes('/') || !t.includes('$')) continue;
+      const m = t.match(/\$(\d+\.?\d*)\s*(?:per\s+\w+|\/)?\s*([\w\s]*)/);
+      if (m && t.includes('/')) {
+        const um = t.match(/\(\$(\d+\.?\d*)\$?\d*\.?\d*\s*\/\s*([\w\s]+)\)/);
+        if (um) return '$' + um[1] + '/' + um[2].trim();
+      }
+    }
+    return '';
+  }) || '';
+
   // Calculate savings
   if (result.snsPrice && result.oneTimePrice && result.oneTimePrice > result.snsPrice) {
     result.savingsPct = Math.round((1 - result.snsPrice / result.oneTimePrice) * 100);
@@ -260,7 +284,7 @@ async function scrapeProductPage(page, asin) {
   return result;
 }
 
-async function scrapeAlternatives(page, itemName, currentAsin, maxAlts = 3) {
+async function scrapeAlternatives(page, itemName, currentAsin, currentPrice, maxAlts = 3) {
   // Strategy 1: Check Amazon's "Compare with similar items" on the product page
   // (we're still on the product page from scrapeProductPage)
   let alternatives = await page.evaluate(({ currentAsin, maxAlts }) => {
@@ -336,18 +360,19 @@ async function scrapeAlternatives(page, itemName, currentAsin, maxAlts = 3) {
       const price = parseFloat(whole + '.' + frac);
       if (!price || price < 1) continue;
 
-      // Unit price text
-      const unitPriceEl = result.querySelector('.a-size-base.a-color-secondary');
+      // Unit price: search all spans for pattern like "($0.40/100 Sheets)"
       let unitPrice = '';
-      if (unitPriceEl) {
-        const upt = unitPriceEl.textContent || '';
-        const upm = upt.match(/\(\$[\d.]+\/[^)]+\)/);
-        if (upm) unitPrice = upm[0];
+      for (const el of result.querySelectorAll('span')) {
+        const t = el.textContent.trim();
+        if (t.length > 60 || !t.includes('/') || !t.includes('$')) continue;
+        const upm = t.match(/\(\$(\d+\.?\d*)\$?\d*\.?\d*\s*\/\s*([\w\s]+)\)/);
+        if (upm) { unitPrice = '$' + upm[1] + '/' + upm[2].trim(); break; }
       }
 
       alts.push({
         name: (nameEl.textContent || '').trim().slice(0, 120),
         price: '$' + price.toFixed(2),
+        priceNum: price,
         unitPrice,
         asin,
       });
@@ -355,8 +380,30 @@ async function scrapeAlternatives(page, itemName, currentAsin, maxAlts = 3) {
     return alts;
   }, { currentAsin, maxAlts, existingCount });
 
-  alternatives = alternatives.concat(searchAlts);
-  return alternatives.slice(0, maxAlts);
+  alternatives = alternatives.concat(searchAlts).slice(0, maxAlts);
+
+  // Add savings vs current item and pick recommendation
+  for (const alt of alternatives) {
+    if (currentPrice && alt.priceNum) {
+      const diff = currentPrice - alt.priceNum;
+      if (diff > 0) {
+        alt.savings = '$' + diff.toFixed(2) + ' less';
+      } else if (diff < 0) {
+        alt.savings = '$' + Math.abs(diff).toFixed(2) + ' more';
+      }
+    }
+    delete alt.priceNum; // don't store in Firebase
+  }
+
+  // Recommend: cheapest alternative that saves money
+  const cheapest = alternatives
+    .filter(a => currentPrice && parseFloat(a.price.replace('$', '')) < currentPrice)
+    .sort((a, b) => parseFloat(a.price.replace('$', '')) - parseFloat(b.price.replace('$', '')))[0];
+  if (cheapest) {
+    cheapest.recommended = true;
+  }
+
+  return alternatives;
 }
 
 // ========== Main ==========
@@ -429,7 +476,7 @@ async function main() {
 
       // Scrape alternatives
       await randomDelay(3000, 8000);
-      const alternatives = await scrapeAlternatives(page, item.name, asin);
+      const alternatives = await scrapeAlternatives(page, item.name, asin, priceResult.snsPrice || priceResult.oneTimePrice);
       log(`  Found ${alternatives.length} alternatives`);
 
       // Build data object
@@ -437,6 +484,7 @@ async function main() {
         snsPrice: priceResult.snsPrice,
         oneTimePrice: priceResult.oneTimePrice,
         savingsPct: priceResult.savingsPct,
+        unitPrice: priceResult.unitPrice,
         coupons: priceResult.coupons,
         alternatives,
         lastChecked: new Date().toISOString(),
