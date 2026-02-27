@@ -467,6 +467,15 @@
             renderItems(currentFilter());
           });
 
+          // Alt preferences sync
+          db.ref('altPreferences').on('value', snapshot => {
+            const data = snapshot.val();
+            if (!data) return;
+            altPreferences = data;
+            localStorage.setItem('sns-alt-prefs', JSON.stringify(altPreferences));
+            renderItems(currentFilter());
+          });
+
           // Order history
           db.ref('orderHistory').on('value', snapshot => {
             const data = snapshot.val();
@@ -514,6 +523,7 @@
           items.forEach(item => { updates[item.id] = !!state[item.id]; });
           selectionsRef.update(updates);
           if (Object.keys(cancelQueue).length > 0) cancelQueueRef.update(cancelQueue);
+          if (Object.keys(altPreferences).length > 0) db.ref('altPreferences').update(altPreferences);
         }).catch(err => console.warn('Firebase auth failed:', err));
       } catch (e) {
         console.warn('Firebase not configured:', e.message);
@@ -959,7 +969,8 @@
         let histBadge = '';
         if (oh) {
           const interval = oh.avgIntervalDays ? `~${oh.avgIntervalDays}d avg` : '';
-          const title = `${oh.orderCount} orders, last ${oh.lastOrdered}, avg interval ${oh.avgIntervalDays || '?'} days, total $${oh.totalSpent}`;
+          const lastDate = oh.lastOrdered ? formatShortDate(new Date(oh.lastOrdered)) : '?';
+          const title = `${oh.orderCount} orders, last ${lastDate}, avg interval ${oh.avgIntervalDays || '?'} days, total $${oh.totalSpent}`;
           histBadge = `<span class="history-badge" title="${title}">${oh.orderCount} orders${interval ? ' / ' + interval : ''}</span>`;
         }
 
@@ -1274,8 +1285,10 @@
     function switchAlt(itemId, altName) {
       if (altPreferences[itemId] === altName) {
         delete altPreferences[itemId];
+        if (firebaseReady) db.ref('altPreferences').child(String(itemId)).remove();
       } else {
         altPreferences[itemId] = altName;
+        if (firebaseReady) db.ref('altPreferences').child(String(itemId)).set(altName);
       }
       localStorage.setItem('sns-alt-prefs', JSON.stringify(altPreferences));
       renderItems(currentFilter());
@@ -1330,9 +1343,11 @@
         const card = document.createElement('div');
         card.className = 'deletion-card';
         const asin = itemAsins[id];
+        const itemObj = items.find(i => i.id === parseInt(id));
+        const displayName = data.itemName || (itemObj ? itemObj.name : 'Item ' + id);
         const nameHtml = asin
-          ? `<a href="https://www.amazon.com/dp/${asin}" target="_blank" style="color:inherit">${data.itemName}</a>`
-          : data.itemName;
+          ? `<a href="https://www.amazon.com/dp/${asin}" target="_blank" style="color:inherit">${displayName}</a>`
+          : displayName;
         card.innerHTML = `
           <div class="dc-name">${nameHtml}</div>
           <div class="dc-reason">${data.deletionReason}</div>
