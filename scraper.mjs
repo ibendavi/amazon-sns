@@ -83,8 +83,12 @@ const UNIT_MAPPINGS = {
   'cat food.*lb': { unit: 'lb', pattern: /([\d.]+)\s*lbs?/i },
   'dog food.*lb': { unit: 'lb', pattern: /([\d.]+)\s*lbs?/i },
   'cat litter': { unit: 'lb', pattern: /(\d+)\s*lbs?/i },
-  'coffee.*lb': { unit: 'oz', pattern: /([\d.]+)\s*(?:lbs?|oz)/i, multiplier: (m) => m[0].includes('lb') ? parseFloat(m[1]) * 16 : parseFloat(m[1]) },
-  'coffee.*pack': { unit: 'pack', pattern: /(\d+)[- ]?pack/i },
+  'coffee': { unit: 'oz', pattern: /([\d.]+)\s*(?:lbs?|oz|kg)/i, multiplier: (m) => {
+    const val = parseFloat(m[1]);
+    if (m[0].toLowerCase().includes('lb')) return val * 16;
+    if (m[0].toLowerCase().includes('kg')) return val * 35.274;
+    return val;
+  }},
   'almonds': { unit: 'oz', pattern: /(\d+)\s*oz/i },
   'seeds': { unit: 'oz', pattern: /([\d.]+)\s*(?:lbs?|oz)/i, multiplier: (m) => m[0].includes('lb') ? parseFloat(m[1]) * 16 : parseFloat(m[1]) },
   'batteries': { unit: 'battery', pattern: /(\d+)\s*(?:pack|count|ct)/i },
@@ -93,7 +97,7 @@ const UNIT_MAPPINGS = {
   'bars': { unit: 'bar', pattern: /(\d+)\s*bars?/i },
   'deodorant.*pack': { unit: 'stick', pattern: /(\d+)[- ]?pack/i },
   'dryer sheets': { unit: 'sheet', pattern: /(\d+)\s*(?:ct|count|sheets?)/i },
-  'wipes': { unit: 'wipe', pattern: /(\d+)[- ]?(?:pack|ct|count)/i },
+  'wipes.*pack': { unit: 'pack', pattern: /(\d+)[- ]?pack/i },
   'toothpaste.*pack': { unit: 'tube', pattern: /(\d+)[- ]?pack/i },
   'floss.*pack': { unit: 'pack', pattern: /(\d+)[- ]?pack/i },
   'razor.*refills': { unit: 'cartridge', pattern: /(\d+)\s*(?:count|ct|refills?)/i },

@@ -607,16 +607,14 @@
       // Potential savings from recommendations
       let potentialSavings = 0;
       items.forEach(item => {
-        // Best alternative savings
         const allAlts = getAllAlternatives(item);
-        const bestAlt = allAlts.sort((a, b) => (a.unitPriceNum || a.priceNum || Infinity) - (b.unitPriceNum || b.priceNum || Infinity))[0];
+        const bestAlt = findBestValue(allAlts, item);
         if (bestAlt) {
           const currentPrice = parseFloat(item.price.replace('$', ''));
-          const altPrice = bestAlt.priceNum || parseFloat((bestAlt.price || '').replace('$', ''));
-          if (altPrice && currentPrice && altPrice < currentPrice) {
+          if (bestAlt.priceNum && currentPrice && bestAlt.priceNum < currentPrice) {
             const freqMonths = parseFreqMonths(item.freq);
             if (freqMonths !== Infinity) {
-              potentialSavings += (currentPrice - altPrice) * item.qty * (12 / freqMonths);
+              potentialSavings += (currentPrice - bestAlt.priceNum) * item.qty * (12 / freqMonths);
             }
           }
         }
@@ -727,15 +725,27 @@
     // ========== Competitor + All Alternatives ==========
     function getAllAlternatives(item) {
       const all = [];
+      const pd = priceData[item.id];
+      const currentUnit = pd?.computedUnit || null; // e.g. "roll", "oz", "can"
 
       // Amazon alternatives from priceData
       if (item.alternatives) {
         item.alternatives.forEach(alt => {
+          // Prefer our computed unit price (same unit system as current item)
+          // over Amazon's scraped unit price (which may use different units)
+          const hasMatchingUnit = alt.computedUnit && alt.computedUnit === currentUnit;
+          const displayUnitPrice = hasMatchingUnit
+            ? alt.computedUnitPrice
+            : (alt.computedUnitPrice || alt.unitPrice || '');
+
           all.push({
             ...alt,
             store: 'amazon',
             priceNum: parseFloat((alt.price || '').replace('$', '')) || null,
-            unitPriceNum: parseUnitPrice(alt.unitPrice),
+            // Only set comparable unit price when units match
+            comparableUnitPrice: hasMatchingUnit ? alt.computedUnitPriceNum : null,
+            comparableUnit: hasMatchingUnit ? alt.computedUnit : null,
+            displayUnitPrice,
           });
         });
       }
@@ -745,12 +755,14 @@
       if (comp) {
         for (const [store, data] of Object.entries(comp)) {
           if (!data || !data.price) continue;
+          const hasMatchingUnit = data.unit && data.unit === currentUnit;
           all.push({
             name: data.name,
             price: '$' + (typeof data.price === 'number' ? data.price.toFixed(2) : data.price),
             priceNum: typeof data.price === 'number' ? data.price : parseFloat(String(data.price).replace('$', '')),
-            unitPrice: data.unitPrice ? `$${data.unitPrice}/${data.unit || 'ea'}` : '',
-            unitPriceNum: data.unitPrice || null,
+            displayUnitPrice: data.unitPrice ? `$${data.unitPrice}/${data.unit || 'ea'}` : '',
+            comparableUnitPrice: hasMatchingUnit ? data.unitPrice : null,
+            comparableUnit: hasMatchingUnit ? data.unit : null,
             url: data.url,
             store,
             asin: null,
@@ -768,39 +780,37 @@
     }
 
     function findBestValue(alts, currentItem) {
-      // Include the current item in comparison
-      const currentUnitPrice = parseUnitPrice(priceData[currentItem.id]?.computedUnitPrice || priceData[currentItem.id]?.unitPrice);
+      const pd = priceData[currentItem.id];
+      const currentUnit = pd?.computedUnit || null;
+      const currentComparableUnitPrice = pd?.computedUnitPriceNum || null;
       const currentPrice = parseFloat(currentItem.price.replace('$', '')) || null;
 
-      let best = null;
-      let bestMetric = Infinity;
-      let usingUnitPrice = alts.some(a => a.unitPriceNum);
-
-      if (usingUnitPrice) {
-        if (currentUnitPrice && currentUnitPrice < bestMetric) {
-          bestMetric = currentUnitPrice;
-          best = null; // current item is best
-        }
-        alts.forEach(a => {
-          if (a.unitPriceNum && a.unitPriceNum < bestMetric) {
-            bestMetric = a.unitPriceNum;
+      // Strategy 1: Compare by unit price if we have same-unit data
+      const sameUnitAlts = alts.filter(a => a.comparableUnitPrice && a.comparableUnit === currentUnit);
+      if (sameUnitAlts.length > 0 && currentComparableUnitPrice) {
+        let best = null;
+        let bestUP = currentComparableUnitPrice;
+        for (const a of sameUnitAlts) {
+          if (a.comparableUnitPrice < bestUP) {
+            bestUP = a.comparableUnitPrice;
             best = a;
           }
-        });
-      } else {
-        if (currentPrice && currentPrice < bestMetric) {
-          bestMetric = currentPrice;
-          best = null;
         }
-        alts.forEach(a => {
-          if (a.priceNum && a.priceNum < bestMetric) {
-            bestMetric = a.priceNum;
-            best = a;
-          }
-        });
+        if (best) return best;
+        return null; // current item is best
       }
 
-      return best; // null means current item is best value
+      // Strategy 2: Fall back to total price comparison
+      if (!currentPrice) return null;
+      let best = null;
+      let bestPrice = currentPrice;
+      for (const a of alts) {
+        if (a.priceNum && a.priceNum < bestPrice) {
+          bestPrice = a.priceNum;
+          best = a;
+        }
+      }
+      return best; // null means current item is cheapest
     }
 
     // ========== Price Trend ==========
@@ -985,18 +995,26 @@
             const storeBadgeHtml = `<span class="store-badge ${alt.store}">${alt.store.charAt(0).toUpperCase() + alt.store.slice(1)}</span>`;
 
             const metaParts = [alt.price];
-            if (alt.unitPrice) metaParts.push(alt.unitPrice);
+            if (alt.displayUnitPrice) metaParts.push(alt.displayUnitPrice);
 
-            // Savings vs current
+            // Savings: prefer same-unit comparison, fall back to total price
             const currentPrice = parseFloat(item.price.replace('$', ''));
+            const pd = priceData[item.id];
             let savingsHtml = '';
-            if (alt.priceNum && currentPrice) {
+            if (alt.comparableUnitPrice && pd?.computedUnitPriceNum) {
+              // Same-unit comparison
+              const diff = pd.computedUnitPriceNum - alt.comparableUnitPrice;
+              const unit = alt.comparableUnit;
+              if (diff > 0.005) savingsHtml = `<div class="alt-savings">$${diff.toFixed(2)}/${unit} cheaper</div>`;
+              else if (diff < -0.005) savingsHtml = `<div class="alt-savings more-expensive">$${Math.abs(diff).toFixed(2)}/${unit} more</div>`;
+            } else if (alt.priceNum && currentPrice) {
+              // Total price comparison (may be different sizes)
               const diff = currentPrice - alt.priceNum;
-              if (diff > 0) savingsHtml = `<div class="alt-savings">$${diff.toFixed(2)} less</div>`;
-              else if (diff < 0) savingsHtml = `<div class="alt-savings more-expensive">$${Math.abs(diff).toFixed(2)} more</div>`;
-            } else if (alt.savings) {
-              const savingsClass = alt.savings.includes('more') ? 'alt-savings more-expensive' : 'alt-savings';
-              savingsHtml = `<div class="${savingsClass}">${alt.savings}</div>`;
+              if (Math.abs(diff) > 0.01) {
+                const note = alt.comparableUnit ? '' : ' (different size)';
+                if (diff > 0) savingsHtml = `<div class="alt-savings">$${diff.toFixed(2)} less${note}</div>`;
+                else savingsHtml = `<div class="alt-savings more-expensive">$${Math.abs(diff).toFixed(2)} more${note}</div>`;
+              }
             }
 
             // Link/button
@@ -1026,11 +1044,18 @@
 
           // Best value summary row
           if (bestVal) {
-            const currentPrice = parseFloat(item.price.replace('$', ''));
-            const saving = currentPrice ? (currentPrice - (bestVal.priceNum || 0)) : 0;
-            const unitLabel = bestVal.unitPrice ? ` (${bestVal.unitPrice})` : '';
-            const savePer = saving > 0 ? `, saves $${saving.toFixed(2)}/order` : '';
-            altHtml += `<div class="best-value-row">\u2605 Best value: ${bestVal.store.charAt(0).toUpperCase() + bestVal.store.slice(1)} ${bestVal.name}${unitLabel}${savePer}</div>`;
+            const pd = priceData[item.id];
+            let saveSummary = '';
+            if (bestVal.comparableUnitPrice && pd?.computedUnitPriceNum) {
+              const diff = pd.computedUnitPriceNum - bestVal.comparableUnitPrice;
+              if (diff > 0) saveSummary = `, saves $${diff.toFixed(2)}/${bestVal.comparableUnit}`;
+            } else {
+              const currentPrice = parseFloat(item.price.replace('$', ''));
+              const saving = currentPrice ? (currentPrice - (bestVal.priceNum || 0)) : 0;
+              if (saving > 0) saveSummary = `, saves $${saving.toFixed(2)}/order`;
+            }
+            const unitLabel = bestVal.displayUnitPrice ? ` (${bestVal.displayUnitPrice})` : '';
+            altHtml += `<div class="best-value-row">\u2605 Best value: ${bestVal.store.charAt(0).toUpperCase() + bestVal.store.slice(1)} ${bestVal.name}${unitLabel}${saveSummary}</div>`;
           }
 
           altHtml += '</div>';
