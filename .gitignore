@@ -1,0 +1,6 @@
+node_modules/
+.browser-profile/
+firebase-service-account.json
+scraper.log
+*.tmp.*
+*~

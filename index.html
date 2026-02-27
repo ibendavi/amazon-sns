@@ -60,6 +60,13 @@
     .alt-switch:hover { background: #e8f0fe; }
     .alt-switch.selected { background: #146eb4; color: #fff; }
     .pref-alt { color: #146eb4; font-size: 0.78rem; margin-left: 6px; }
+    .cancel-btn { background: none; border: none; color: #d32f2f; font-size: 1.1rem; cursor: pointer; padding: 2px 6px; line-height: 1; opacity: 0.4; transition: opacity 0.2s; flex-shrink: 0; margin-top: 1px; }
+    .cancel-btn:hover { opacity: 1; }
+    .item.cancelled { opacity: 0.35; }
+    .item.cancelled .item-name { text-decoration: line-through; color: #999; }
+    .cancel-label { color: #d32f2f; font-size: 0.75rem; font-weight: 500; margin-left: 8px; }
+    .price-badge { font-size: 0.72rem; color: #1e7e34; font-weight: 500; margin-left: 6px; }
+    .last-checked { font-size: 0.7rem; color: #aaa; margin-left: 6px; }
   </style>
 </head>
 <body>
@@ -104,6 +111,7 @@
       { id: 28, name: "PUREPLUS 9690 Refrigerator Water Filter (4 pack)", price: "$27.38", qty: 1, freq: "2 months", alternatives: [] },
       { id: 41, name: "Amazon Basics Liquid Hand Soap Refill (2-pack)", price: "$8.02", qty: 1, freq: "2 months", alternatives: [] },
       { id: 33, name: "Downy CALM Mega Dryer Sheets Lavender (130 ct)", price: "$7.35", qty: 1, freq: "2 months", alternatives: [] },
+      { id: 9, name: "Hill's Prescription Diet t/d Cat Food (8.5 lb)", price: "", qty: 1, freq: "2 months", alternatives: [] },
       { id: 14, name: "Gillette Clinical Deodorant Cool Wave (3-pack)", price: "$43.32", qty: 2, freq: "3 months", alternatives: [] },
       { id: 40, name: "Endangered Species Dark Chocolate 88% (12 bars)", price: "$47.49", qty: 1, freq: "3 months", alternatives: [] },
       { id: 26, name: "Triple Strength Fish Oil Omega 3 (180 softgels)", price: "$45.01", qty: 1, freq: "3 months", alternatives: [] },
@@ -129,7 +137,6 @@
       { id: 34, name: "Dove White Peach Body Scrub (15 oz)", price: "$6.77", qty: 1, freq: "6 months", alternatives: [] },
       { id: 4, name: "Energizer 2032 Batteries (2 count)", price: "$3.82", qty: 1, freq: "6 months", alternatives: [] },
       { id: 17, name: "Reynolds Quick Cut Plastic Wrap (225 sq ft)", price: "$3.39", qty: 1, freq: "6 months", alternatives: [] },
-      { id: 9, name: "Hill's Prescription Diet t/d Cat Food (8.5 lb)", price: "Vet approval needed", qty: 1, freq: "", note: "vet", alternatives: [] },
       { id: 42, name: "Lebanon Valley Tahineh (32 oz)", price: "", qty: 1, freq: "", note: "unavailable", alternatives: [] },
     ];
 
@@ -171,6 +178,8 @@
     let db = null;
     let selectionsRef = null;
     let sendQueueRef = null;
+    let cancelQueueRef = null;
+    let priceDataRef = null;
     let firebaseReady = false;
 
     function initFirebase() {
@@ -181,6 +190,8 @@
           db = firebase.database();
           selectionsRef = db.ref('selections');
           sendQueueRef = db.ref('sendQueue');
+          cancelQueueRef = db.ref('cancelQueue');
+          priceDataRef = db.ref('priceData');
           firebaseReady = true;
 
           // Connection status indicator
@@ -212,10 +223,36 @@
             }
           });
 
+          // Sync cancelQueue from Firebase
+          cancelQueueRef.on('value', snapshot => {
+            const data = snapshot.val();
+            if (data) {
+              cancelQueue = data;
+              localStorage.setItem('sns-cancel-queue', JSON.stringify(cancelQueue));
+              renderItems(currentFilter());
+            }
+          });
+
+          // Load price data from Firebase (written by scraper)
+          priceDataRef.on('value', snapshot => {
+            const data = snapshot.val();
+            if (!data) return;
+            priceData = data;
+            items.forEach(item => {
+              const pd = priceData[item.id];
+              if (pd) {
+                if (pd.alternatives && pd.alternatives.length > 0) item.alternatives = pd.alternatives;
+                if (pd.snsPrice && !item.price) item.price = '$' + pd.snsPrice.toFixed(2);
+              }
+            });
+            renderItems(currentFilter());
+          });
+
           // Push current state to Firebase on first connect
           const updates = {};
           items.forEach(item => { updates[item.id] = !!state[item.id]; });
           selectionsRef.update(updates);
+          if (Object.keys(cancelQueue).length > 0) cancelQueueRef.update(cancelQueue);
         }).catch(err => console.warn('Firebase auth failed:', err));
       } catch (e) {
         console.warn('Firebase not configured:', e.message);
@@ -272,6 +309,8 @@
 
     let state = loadState();
     let altPreferences = JSON.parse(localStorage.getItem('sns-alt-prefs') || '{}');
+    let cancelQueue = JSON.parse(localStorage.getItem('sns-cancel-queue') || '{}');
+    let priceData = {};
 
     window.addEventListener('hashchange', () => {
       state = loadState();
@@ -306,8 +345,9 @@
 
         idx++;
         const checked = state[item.id];
+        const isCancelled = !!cancelQueue[item.id];
         const li = document.createElement('li');
-        li.className = 'item' + (checked ? '' : ' unchecked');
+        li.className = 'item' + (checked ? '' : ' unchecked') + (isCancelled ? ' cancelled' : '');
 
         let noteHtml = '';
         if (item.note === 'unavailable') noteHtml = '<span class="unavailable">Temporarily Unavailable</span>';
@@ -341,15 +381,21 @@
           altHtml += '</div>';
         }
 
+        // Price badge from scraper data
+        const pd = priceData[item.id];
+        let badgeHtml = '';
+        if (pd && pd.savingsPct) badgeHtml = `<span class="price-badge">S&amp;S saves ${pd.savingsPct}%</span>`;
+
         li.innerHTML = `
           <span class="item-num">${idx}</span>
           <input type="checkbox" ${checked ? 'checked' : ''} onchange="toggle(${item.id}, this.checked)" id="cb-${item.id}">
           <div class="item-details">
-            <div class="item-name">${item.name}${prefHtml}</div>
-            <div class="item-meta">${item.freq ? 'Every ' + item.freq : ''}${item.qty > 1 ? ' &middot; Qty: ' + item.qty : ''} ${noteHtml}</div>
+            <div class="item-name">${item.name}${prefHtml}${isCancelled ? '<span class="cancel-label">Pending cancellation</span>' : ''}</div>
+            <div class="item-meta">${item.freq ? 'Every ' + item.freq : ''}${item.qty > 1 ? ' &middot; Qty: ' + item.qty : ''} ${noteHtml}${badgeHtml}</div>
             ${altHtml}
           </div>
           <span class="item-price">${item.price}</span>
+          ${!isCancelled ? `<button class="cancel-btn" onclick="cancelItem(${item.id})" title="Cancel subscription">&times;</button>` : ''}
         `;
         list.appendChild(li);
       });
@@ -417,6 +463,7 @@
       const payload = {
         selections: Object.assign({}, state),
         altPreferences: Object.assign({}, altPreferences),
+        cancelQueue: Object.assign({}, cancelQueue),
         kept: kept,
         skipped: skipped,
         timestamp: Date.now(),
@@ -453,6 +500,28 @@
       }
       localStorage.setItem('sns-alt-prefs', JSON.stringify(altPreferences));
       renderItems(currentFilter());
+    }
+
+    function cancelItem(id) {
+      const item = items.find(i => i.id === id);
+      if (!item) return;
+      if (cancelQueue[id]) {
+        // Already cancelled — offer to undo
+        if (confirm('Undo cancellation for "' + item.name + '"?')) {
+          delete cancelQueue[id];
+          localStorage.setItem('sns-cancel-queue', JSON.stringify(cancelQueue));
+          if (firebaseReady) cancelQueueRef.child(String(id)).remove();
+          renderItems(currentFilter());
+          showToast('Cancellation undone.');
+        }
+        return;
+      }
+      if (!confirm('Cancel subscription for "' + item.name + '"?')) return;
+      cancelQueue[id] = { name: item.name, timestamp: Date.now() };
+      localStorage.setItem('sns-cancel-queue', JSON.stringify(cancelQueue));
+      if (firebaseReady) cancelQueueRef.child(String(id)).set(cancelQueue[id]);
+      renderItems(currentFilter());
+      showToast('Marked for cancellation. Click Send to confirm.');
     }
 
     function filterItems(val) {

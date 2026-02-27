@@ -23,9 +23,13 @@ Open the site. Items are sorted by delivery frequency:
 
 Within each group, items are sorted by total cost (highest first) so the most expensive items get your attention first.
 
-### 2. Check Alternatives (Coming Soon)
+### 2. Check Alternatives
 
-Items with known alternatives show an expandable "Alternatives" section with pricing, unit prices, and savings. Click "Switch" to mark a preferred alternative — this gets included in the Send payload.
+Items with known alternatives show an expandable "Alternatives" section with pricing, unit prices, and savings. Click "Switch" to mark a preferred alternative — this gets included in the Send payload. Alternatives are populated weekly by the automated price scraper (see below).
+
+### 2b. Cancel Subscriptions
+
+Each item has a red "x" button to mark it for cancellation. Clicking confirms via dialog, then shows the item with strikethrough and "Pending cancellation" label. Cancellations are included in the Send payload for Claude Code to execute.
 
 ### 3. Send to Claude Code
 
@@ -71,14 +75,11 @@ Set security rules:
 ```json
 {
   "rules": {
-    "selections": {
-      ".read": "auth != null",
-      ".write": "auth != null"
-    },
-    "sendQueue": {
-      ".read": "auth != null",
-      ".write": "auth != null"
-    }
+    "selections": { ".read": "auth != null", ".write": "auth != null" },
+    "sendQueue": { ".read": "auth != null", ".write": "auth != null" },
+    "cancelQueue": { ".read": "auth != null", ".write": "auth != null" },
+    "priceData": { ".read": "auth != null", ".write": "auth != null" },
+    "itemConfig": { ".read": "auth != null", ".write": "auth != null" }
   }
 }
 ```
@@ -99,6 +100,67 @@ const firebaseConfig = {
   messagingSenderId: "123456789",
   appId: "1:123456789:web:abc123"
 };
+```
+
+---
+
+## Weekly Price Scraper
+
+An automated Playwright scraper (`scraper.mjs`) runs weekly to check current prices and find alternatives for every S&S item.
+
+### What it does
+
+1. Visits each item's Amazon product page (by ASIN)
+2. Extracts S&S price, one-time price, savings %, and active coupons
+3. Searches for up to 3 alternative products in the same category
+4. Writes all data to Firebase `priceData/` node
+5. The website reads `priceData/` on load to display price badges and alternatives
+
+### Setup
+
+```bash
+cd "E:/Dropbox/Personal Files/Home/amazon-sns"
+npm install
+npx playwright install chromium
+```
+
+Create a Firebase service account:
+1. Firebase Console → Project settings → Service accounts → Generate new private key
+2. Save as `firebase-service-account.json` in the project root (gitignored)
+
+### Manual run
+
+```bash
+node scraper.mjs              # scrape all items
+node scraper.mjs --dry-run    # test without writing to Firebase
+node scraper.mjs --item 13    # scrape a single item
+```
+
+### Automated weekly run
+
+`schedule-scraper.bat` is registered in Windows Task Scheduler:
+- **Trigger:** Weekly, Sunday at 1:00 AM
+- **Effective window:** 1:00–4:00 AM (random 0–3 hour delay built in)
+- **Logs:** `scraper.log` in the project directory
+
+Register the task:
+```cmd
+schtasks /create /tn "AmazonSNS-PriceScraper" /tr "E:\Dropbox\Personal Files\Home\amazon-sns\schedule-scraper.bat" /sc weekly /d SUN /st 01:00 /rl HIGHEST /f
+```
+
+### Firebase data structure
+
+```
+priceData/{itemId}: {
+  snsPrice: 24.64,
+  oneTimePrice: 28.99,
+  savingsPct: 15,
+  coupons: [],
+  alternatives: [
+    { name: "Brand X", price: "$18.99", unitPrice: "$0.50/ea", asin: "B0..." }
+  ],
+  lastChecked: "2026-02-28T03:42:00Z"
+}
 ```
 
 ---
@@ -128,7 +190,7 @@ Planned workflow:
 | 6 | Febreze AIR Linen & Sky (6 pk) | $18.94 | 1 | 6 mo | $18.94 |
 | 7 | Gillette ProGlide Refills (8 ct) | $19.76 | 1 | 6 mo | $19.76 |
 | 8 | Nescafe Taster's Choice (2x7 oz) | $22.92 | 1 | 6 mo | $22.92 |
-| 9 | Hill's Rx t/d Cat Food (8.5 lb) | Vet auth | 1 | — | — |
+| 9 | Hill's Rx t/d Cat Food (8.5 lb) | — | 1 | 2 mo | — |
 | 10 | Purina Cat Chow Naturals (13 lb) | $16.13 | 1 | 1 mo | $16.13 |
 | 11 | Energizer 123 Lithium (6 pk) | $11.05 | 1 | 6 mo | $11.05 |
 | 12 | Sensodyne Pronamel Whitening (4 pk) | $21.24 | 1 | 6 mo | $21.24 |
@@ -188,4 +250,5 @@ Management console showed $48.81 but the product page lists $45.01 for S&S. Save
 - **Hosting:** GitHub Pages
 - **Sync:** Firebase Realtime Database + Anonymous Auth (optional, falls back to localStorage)
 - **Automation:** Claude Code with Playwright MCP server (headless Chromium)
-- **Data:** localStorage + URL hash for UI state; Firebase for multi-browser sync
+- **Price scraper:** Node.js + Playwright, runs weekly via Task Scheduler, writes to Firebase
+- **Data:** localStorage + URL hash for UI state; Firebase for multi-browser sync + price data

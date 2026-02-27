@@ -1,0 +1,14 @@
+{
+  "name": "amazon-sns-scraper",
+  "version": "1.0.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "scrape": "node scraper.mjs",
+    "scrape:dry": "node scraper.mjs --dry-run"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.0.0",
+    "playwright": "^1.49.0"
+  }
+}
