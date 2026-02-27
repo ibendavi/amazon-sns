@@ -1,11 +1,25 @@
 {
   "name": "amazon-sns-scraper",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "type": "module",
   "private": true,
   "scripts": {
     "scrape": "node scraper.mjs",
-    "scrape:dry": "node scraper.mjs --dry-run"
+    "scrape:dry": "node scraper.mjs --dry-run",
+    "scrape:item": "node scraper.mjs --item",
+    "competitors": "node competitor-scraper.mjs",
+    "competitors:dry": "node competitor-scraper.mjs --dry-run",
+    "competitors:target": "node competitor-scraper.mjs --store target",
+    "competitors:walmart": "node competitor-scraper.mjs --store walmart",
+    "history": "node history-scraper.mjs",
+    "history:dry": "node history-scraper.mjs --dry-run",
+    "history:login": "node history-scraper.mjs --login --dry-run",
+    "implement": "node implementer.mjs",
+    "implement:dry": "node implementer.mjs --dry-run",
+    "implement:login": "node implementer.mjs --login",
+    "cart": "node cart-adder.mjs",
+    "cart:dry": "node cart-adder.mjs --dry-run",
+    "scrape:all": "node scraper.mjs && node competitor-scraper.mjs"
   },
   "dependencies": {
     "firebase-admin": "^12.0.0",

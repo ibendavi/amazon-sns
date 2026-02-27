@@ -73,6 +73,78 @@ const ITEMS = [
   { id: 17, name: "Reynolds Quick Cut Plastic Wrap (225 sq ft)" },
 ];
 
+// ========== Unit Price Normalization ==========
+
+const UNIT_MAPPINGS = {
+  // Pattern: regex to match product name → { unit, extractCount: regex to extract count from name }
+  'toilet paper': { unit: 'roll', pattern: /(\d+)\s*(?:mega\s+)?rolls?/i },
+  'paper towels': { unit: 'roll', pattern: /(\d+)\s*(?:xl\s+|huge\s+)?rolls?/i },
+  'cat food.*cans': { unit: 'can', pattern: /(\d+)\s*cans?/i },
+  'cat food.*lb': { unit: 'lb', pattern: /([\d.]+)\s*lbs?/i },
+  'dog food.*lb': { unit: 'lb', pattern: /([\d.]+)\s*lbs?/i },
+  'cat litter': { unit: 'lb', pattern: /(\d+)\s*lbs?/i },
+  'coffee.*lb': { unit: 'oz', pattern: /([\d.]+)\s*(?:lbs?|oz)/i, multiplier: (m) => m[0].includes('lb') ? parseFloat(m[1]) * 16 : parseFloat(m[1]) },
+  'coffee.*pack': { unit: 'pack', pattern: /(\d+)[- ]?pack/i },
+  'almonds': { unit: 'oz', pattern: /(\d+)\s*oz/i },
+  'seeds': { unit: 'oz', pattern: /([\d.]+)\s*(?:lbs?|oz)/i, multiplier: (m) => m[0].includes('lb') ? parseFloat(m[1]) * 16 : parseFloat(m[1]) },
+  'batteries': { unit: 'battery', pattern: /(\d+)\s*(?:pack|count|ct)/i },
+  'tablets': { unit: 'tablet', pattern: /(\d+)\s*tablets?/i },
+  'softgels': { unit: 'softgel', pattern: /(\d+)\s*softgels?/i },
+  'bars': { unit: 'bar', pattern: /(\d+)\s*bars?/i },
+  'deodorant.*pack': { unit: 'stick', pattern: /(\d+)[- ]?pack/i },
+  'dryer sheets': { unit: 'sheet', pattern: /(\d+)\s*(?:ct|count|sheets?)/i },
+  'wipes': { unit: 'wipe', pattern: /(\d+)[- ]?(?:pack|ct|count)/i },
+  'toothpaste.*pack': { unit: 'tube', pattern: /(\d+)[- ]?pack/i },
+  'floss.*pack': { unit: 'pack', pattern: /(\d+)[- ]?pack/i },
+  'razor.*refills': { unit: 'cartridge', pattern: /(\d+)\s*(?:count|ct|refills?)/i },
+  'contact solution': { unit: 'oz', pattern: /([\d.]+)\s*oz/i },
+  'soap.*refill': { unit: 'refill', pattern: /(\d+)[- ]?pack/i },
+  'water filter': { unit: 'filter', pattern: /(\d+)\s*(?:pack|filters?)/i },
+  'tape.*rolls': { unit: 'roll', pattern: /(\d+)\s*rolls?/i },
+  'tahini': { unit: 'pack', pattern: /(\d+)\s*pack/i },
+  'plastic wrap': { unit: 'sq ft', pattern: /(\d+)\s*sq\s*ft/i },
+  'chocolate.*almonds': { unit: 'oz', pattern: /(\d+)\s*oz/i },
+  'cleanser.*oz': { unit: 'oz', pattern: /([\d.]+)\s*oz/i },
+  'body scrub': { unit: 'oz', pattern: /([\d.]+)\s*oz/i },
+  'hand cream': { unit: 'oz', pattern: /([\d.]+)\s*oz/i },
+  'cologne|edt|perfume': { unit: 'oz', pattern: /([\d.]+)\s*oz/i },
+  'shower.*count': { unit: 'tablet', pattern: /(\d+)\s*(?:count|ct)/i },
+  'soft.picks': { unit: 'pick', pattern: /(\d+)\s*(?:ct|count)/i },
+  'melatonin': { unit: 'tablet', pattern: /(\d+)\s*tablets?/i },
+};
+
+function computeUnitPrice(itemName, totalPrice) {
+  if (!totalPrice || totalPrice <= 0) return null;
+  const nameLower = itemName.toLowerCase();
+
+  for (const [keyword, mapping] of Object.entries(UNIT_MAPPINGS)) {
+    const keyRe = new RegExp(keyword, 'i');
+    if (!keyRe.test(nameLower)) continue;
+
+    const match = itemName.match(mapping.pattern);
+    if (!match) continue;
+
+    let count;
+    if (mapping.multiplier) {
+      count = mapping.multiplier(match);
+    } else {
+      count = parseFloat(match[1]);
+    }
+
+    if (!count || count <= 0) continue;
+
+    const unitPrice = totalPrice / count;
+    return {
+      unitPrice: Math.round(unitPrice * 100) / 100,
+      unit: mapping.unit,
+      count,
+      formatted: `$${unitPrice.toFixed(2)}/${mapping.unit}`,
+    };
+  }
+
+  return null;
+}
+
 // ========== Helpers ==========
 
 function randomDelay(minMs, maxMs) {
@@ -126,6 +198,49 @@ async function saveAsin(db, itemId, asin) {
 async function savePriceData(db, itemId, data) {
   if (!db) return;
   await db.ref(`priceData/${itemId}`).set(data);
+}
+
+async function appendPriceHistory(db, itemId, data) {
+  if (!db) return;
+  const dateKey = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+  const historyEntry = {
+    snsPrice: data.snsPrice,
+    oneTimePrice: data.oneTimePrice,
+    price: data.snsPrice || data.oneTimePrice,
+    unitPrice: data.computedUnitPrice || null,
+    date: dateKey,
+  };
+  await db.ref(`priceHistory/${itemId}/${dateKey}`).set(historyEntry);
+}
+
+async function checkPriceAlerts(db, itemId, itemName, data) {
+  if (!db || !data.snsPrice) return;
+  // Load previous price from history
+  const snap = await db.ref(`priceHistory/${itemId}`).orderByKey().limitToLast(2).once('value');
+  const history = snap.val();
+  if (!history) return;
+
+  const dates = Object.keys(history).sort();
+  if (dates.length < 2) return;
+
+  const previous = history[dates[dates.length - 2]];
+  const prevPrice = previous?.snsPrice || previous?.price;
+  if (!prevPrice) return;
+
+  const dropPct = ((prevPrice - data.snsPrice) / prevPrice) * 100;
+  if (dropPct >= 10) {
+    await db.ref(`alerts/${itemId}`).set({
+      type: 'price_drop',
+      itemName,
+      message: `Price dropped ${dropPct.toFixed(0)}%: $${prevPrice.toFixed(2)} → $${data.snsPrice.toFixed(2)}`,
+      previousPrice: prevPrice,
+      newPrice: data.snsPrice,
+      dropPct: Math.round(dropPct),
+      timestamp: new Date().toISOString(),
+      dismissed: false,
+    });
+    log(`  ALERT: Price dropped ${dropPct.toFixed(0)}% for ${itemName}!`);
+  }
 }
 
 // ========== Scraping ==========
@@ -479,12 +594,46 @@ async function main() {
       const alternatives = await scrapeAlternatives(page, item.name, asin, priceResult.snsPrice || priceResult.oneTimePrice);
       log(`  Found ${alternatives.length} alternatives`);
 
+      // Compute normalized unit price
+      const effectivePrice = priceResult.snsPrice || priceResult.oneTimePrice;
+      const computed = computeUnitPrice(item.name, effectivePrice);
+      if (computed) {
+        log(`  Computed unit price: ${computed.formatted} (${computed.count} ${computed.unit}s)`);
+      }
+
+      // Compute unit prices for alternatives too
+      for (const alt of alternatives) {
+        const altPrice = parseFloat((alt.price || '').replace('$', ''));
+        const altComputed = computeUnitPrice(alt.name, altPrice);
+        if (altComputed) {
+          alt.computedUnitPrice = altComputed.formatted;
+          alt.computedUnitPriceNum = altComputed.unitPrice;
+          alt.computedUnit = altComputed.unit;
+        }
+      }
+
+      // Re-evaluate "recommended" based on unit price if available
+      const altsWithUnit = alternatives.filter(a => a.computedUnitPriceNum);
+      if (altsWithUnit.length > 0 && computed) {
+        // Clear old recommendations
+        alternatives.forEach(a => delete a.recommended);
+        // Find the cheapest by unit price (including current item)
+        const cheapestAlt = altsWithUnit
+          .filter(a => a.computedUnitPriceNum < computed.unitPrice)
+          .sort((a, b) => a.computedUnitPriceNum - b.computedUnitPriceNum)[0];
+        if (cheapestAlt) cheapestAlt.recommended = true;
+      }
+
       // Build data object
       const data = {
         snsPrice: priceResult.snsPrice,
         oneTimePrice: priceResult.oneTimePrice,
         savingsPct: priceResult.savingsPct,
         unitPrice: priceResult.unitPrice,
+        computedUnitPrice: computed ? computed.formatted : null,
+        computedUnitPriceNum: computed ? computed.unitPrice : null,
+        computedUnit: computed ? computed.unit : null,
+        computedUnitCount: computed ? computed.count : null,
         coupons: priceResult.coupons,
         alternatives,
         lastChecked: new Date().toISOString(),
@@ -493,7 +642,9 @@ async function main() {
       // Save to Firebase
       if (!dryRun) {
         await savePriceData(db, item.id, data);
-        log(`  Saved to Firebase`);
+        await appendPriceHistory(db, item.id, data);
+        await checkPriceAlerts(db, item.id, item.name, data);
+        log(`  Saved to Firebase (price data + history)`);
       } else {
         log(`  [dry-run] Would save: ${JSON.stringify(data).slice(0, 200)}...`);
       }

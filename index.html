@@ -26,6 +26,9 @@
     .controls button:hover { background: #e8e8e8; }
     .controls button.primary { background: #ff9900; color: #fff; border-color: #e88a00; font-weight: 600; }
     .controls button.primary:hover { background: #e88a00; }
+    .controls button.danger { background: #d32f2f; color: #fff; border-color: #b71c1c; font-weight: 600; }
+    .controls button.danger:hover { background: #b71c1c; }
+    .controls button.active { background: #146eb4; color: #fff; border-color: #0d5a9e; }
     .summary { background: #fff; border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); font-size: 0.9rem; }
     .summary span { font-weight: 600; }
     .item-list { list-style: none; }
@@ -37,13 +40,15 @@
     .item-num { font-size: 0.8rem; color: #999; width: 24px; text-align: right; flex-shrink: 0; margin-top: 2px; }
     .item-details { flex: 1; min-width: 0; }
     .item-name { font-weight: 500; font-size: 0.95rem; }
-    .item-meta { font-size: 0.8rem; color: #777; margin-top: 2px; }
+    .item-meta { font-size: 0.8rem; color: #777; margin-top: 2px; display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
     .item-price { font-weight: 600; color: #111; white-space: nowrap; flex-shrink: 0; margin-top: 2px; }
     .unavailable { color: #d32f2f; font-style: italic; font-size: 0.8rem; }
     .vet-note { color: #e65100; font-style: italic; font-size: 0.8rem; }
     .search { padding: 8px 12px; border: 1px solid #ccc; border-radius: 6px; font-size: 0.9rem; width: 180px; }
     .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: #333; color: #fff; padding: 10px 24px; border-radius: 8px; font-size: 0.9rem; z-index: 999; opacity: 0; transition: opacity 0.3s; pointer-events: none; }
     .toast.show { opacity: 1; }
+
+    /* Alternatives */
     .alt-toggle { font-size: 0.8rem; color: #146eb4; cursor: pointer; margin-top: 4px; display: inline-block; }
     .alt-toggle:hover { text-decoration: underline; }
     .alt-list { margin-top: 6px; padding: 8px 12px; background: #f9f9f9; border-radius: 6px; font-size: 0.82rem; display: none; }
@@ -56,17 +61,117 @@
     .alt-savings { color: #1e7e34; font-weight: 600; font-size: 0.78rem; }
     .alt-savings.more-expensive { color: #d32f2f; }
     .alt-recommended { display: inline-block; background: #1e7e34; color: #fff; font-size: 0.68rem; font-weight: 600; padding: 1px 6px; border-radius: 3px; margin-left: 6px; }
-    .alt-switch { padding: 3px 10px; border: 1px solid #146eb4; border-radius: 4px; background: #fff; color: #146eb4; cursor: pointer; font-size: 0.75rem; margin-left: 8px; }
+    .alt-switch { padding: 3px 10px; border: 1px solid #146eb4; border-radius: 4px; background: #fff; color: #146eb4; cursor: pointer; font-size: 0.75rem; margin-left: 8px; white-space: nowrap; }
     .alt-switch:hover { background: #e8f0fe; }
     .alt-switch.selected { background: #146eb4; color: #fff; }
     .pref-alt { color: #146eb4; font-size: 0.78rem; margin-left: 6px; }
+
+    /* Cancel */
     .cancel-btn { background: none; border: none; color: #d32f2f; font-size: 1.1rem; cursor: pointer; padding: 2px 6px; line-height: 1; opacity: 0.4; transition: opacity 0.2s; flex-shrink: 0; margin-top: 1px; }
     .cancel-btn:hover { opacity: 1; }
     .item.cancelled { opacity: 0.35; }
     .item.cancelled .item-name { text-decoration: line-through; color: #999; }
     .cancel-label { color: #d32f2f; font-size: 0.75rem; font-weight: 500; margin-left: 8px; }
+
+    /* Badges */
     .price-badge { font-size: 0.72rem; color: #1e7e34; font-weight: 500; margin-left: 6px; }
     .last-checked { font-size: 0.7rem; color: #aaa; margin-left: 6px; }
+    .history-badge { font-size: 0.7rem; color: #666; background: #f0f0f0; padding: 1px 6px; border-radius: 3px; cursor: help; }
+
+    /* Urgency badges */
+    .urgency-badge { font-size: 0.7rem; font-weight: 600; padding: 1px 8px; border-radius: 10px; white-space: nowrap; }
+    .urgency-badge.due-soon { background: #ffebee; color: #c62828; }
+    .urgency-badge.maybe { background: #fff8e1; color: #f57f17; }
+    .urgency-badge.stock-ok { background: #e8f5e9; color: #2e7d32; }
+
+    /* Predicted next date */
+    .next-date { font-size: 0.72rem; color: #555; }
+
+    /* Store badges */
+    .store-badge { font-size: 0.68rem; font-weight: 600; padding: 1px 6px; border-radius: 3px; color: #fff; white-space: nowrap; }
+    .store-badge.amazon { background: #ff9900; }
+    .store-badge.target { background: #cc0000; }
+    .store-badge.walmart { background: #0071dc; }
+    .store-badge.costco { background: #e31837; }
+    .store-badge.sams { background: #0060a9; }
+    .best-value-row { background: #e8f5e9; padding: 6px 8px; border-radius: 4px; margin-top: 6px; font-size: 0.8rem; color: #1b5e20; font-weight: 500; }
+    .alt-link { padding: 3px 10px; border: 1px solid #999; border-radius: 4px; background: #fff; color: #555; cursor: pointer; font-size: 0.75rem; margin-left: 8px; text-decoration: none; white-space: nowrap; }
+    .alt-link:hover { background: #f5f5f5; }
+
+    /* Coupon badges */
+    .coupon-badge { display: inline-block; background: #1e7e34; color: #fff; font-size: 0.7rem; font-weight: 600; padding: 1px 6px; border-radius: 3px; }
+    .effective-price { font-size: 0.72rem; color: #1e7e34; font-weight: 500; }
+
+    /* Price trend */
+    .trend-up { color: #d32f2f; }
+    .trend-down { color: #1e7e34; }
+    .trend-flat { color: #777; }
+    .week52-low { font-size: 0.68rem; background: #e8f5e9; color: #1b5e20; padding: 1px 6px; border-radius: 3px; font-weight: 600; }
+
+    /* Deletion section */
+    .deletion-section { margin-top: 24px; }
+    .deletion-header { font-size: 1.1rem; font-weight: 600; color: #d32f2f; margin-bottom: 8px; padding-bottom: 6px; border-bottom: 2px solid #d32f2f; }
+    .deletion-card { background: #fff; border-radius: 8px; padding: 12px 16px; margin-bottom: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); border-left: 4px solid #d32f2f; }
+    .deletion-card .dc-name { font-weight: 600; font-size: 0.95rem; }
+    .deletion-card .dc-reason { color: #d32f2f; font-size: 0.82rem; margin-top: 4px; }
+    .deletion-card .dc-stats { font-size: 0.8rem; color: #777; margin-top: 4px; }
+
+    /* Dashboard */
+    .dashboard { background: #fff; border-radius: 8px; padding: 16px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    .dashboard-header { display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
+    .dashboard-header h2 { font-size: 1.1rem; }
+    .dashboard-toggle { font-size: 0.8rem; color: #146eb4; }
+    .dashboard-body { display: none; margin-top: 12px; }
+    .dashboard-body.open { display: block; }
+    .dash-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+    .dash-card { background: #f9f9f9; border-radius: 6px; padding: 12px; text-align: center; }
+    .dash-card .dash-value { font-size: 1.5rem; font-weight: 700; color: #111; }
+    .dash-card .dash-label { font-size: 0.78rem; color: #777; margin-top: 2px; }
+    .dash-categories { margin-top: 12px; }
+    .dash-categories h3 { font-size: 0.85rem; color: #555; margin-bottom: 6px; }
+    .cat-row { display: flex; justify-content: space-between; padding: 3px 0; font-size: 0.82rem; border-bottom: 1px solid #f0f0f0; }
+
+    /* Frequency recommendations */
+    .freq-recs { margin-bottom: 16px; }
+    .freq-recs h3 { font-size: 0.95rem; margin-bottom: 8px; color: #555; }
+    .freq-rec-card { background: #fff; border-radius: 8px; padding: 10px 14px; margin-bottom: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); border-left: 4px solid #146eb4; font-size: 0.85rem; }
+    .freq-rec-card .rec-title { font-weight: 600; }
+    .freq-rec-card .rec-detail { color: #777; margin-top: 2px; }
+    .freq-rec-card .rec-savings { color: #1e7e34; font-weight: 600; margin-top: 2px; }
+
+    /* Alert cards */
+    .alerts-section { margin-bottom: 16px; }
+    .alert-card { background: #fff3e0; border-radius: 8px; padding: 10px 14px; margin-bottom: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); border-left: 4px solid #ff9800; font-size: 0.85rem; }
+    .alert-card .alert-title { font-weight: 600; color: #e65100; }
+    .alert-card .alert-detail { color: #777; margin-top: 2px; }
+
+    /* Implement modal */
+    .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center; }
+    .modal-overlay.open { display: flex; }
+    .modal { background: #fff; border-radius: 12px; padding: 24px; max-width: 600px; width: 90%; max-height: 80vh; overflow-y: auto; }
+    .modal h2 { margin-bottom: 16px; font-size: 1.2rem; }
+    .modal-actions { margin-top: 8px; }
+    .modal-action { padding: 6px 0; font-size: 0.85rem; border-bottom: 1px solid #f0f0f0; }
+    .modal-action:last-child { border-bottom: none; }
+    .modal-action .action-type { font-weight: 600; text-transform: uppercase; font-size: 0.72rem; padding: 1px 6px; border-radius: 3px; color: #fff; margin-right: 6px; }
+    .action-type.skip { background: #ff9800; }
+    .action-type.switch { background: #146eb4; }
+    .action-type.cancel { background: #d32f2f; }
+    .modal-buttons { display: flex; gap: 8px; margin-top: 16px; justify-content: flex-end; }
+    .modal-buttons button { padding: 8px 20px; border-radius: 6px; border: 1px solid #ccc; cursor: pointer; font-size: 0.9rem; }
+    .modal-buttons .btn-confirm { background: #ff9900; color: #fff; border-color: #e88a00; font-weight: 600; }
+    .modal-buttons .btn-cancel { background: #fff; }
+
+    /* Progress bar */
+    .progress-section { display: none; background: #fff; border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    .progress-section.active { display: block; }
+    .progress-bar-track { background: #e0e0e0; border-radius: 4px; height: 8px; margin-top: 8px; overflow: hidden; }
+    .progress-bar-fill { background: #ff9900; height: 100%; border-radius: 4px; transition: width 0.3s; width: 0%; }
+    .progress-label { font-size: 0.82rem; color: #555; }
+    .progress-detail { font-size: 0.78rem; color: #999; margin-top: 4px; }
+
+    /* Bulk buy suggestions */
+    .bulk-suggestion { font-size: 0.72rem; color: #146eb4; margin-top: 2px; }
   </style>
 </head>
 <body>
@@ -77,10 +182,37 @@
   <div class="subtitle">March 10, 2026 Delivery &mdash; <span id="itemCount">44</span> items</div>
   <div class="deadline">Last day to edit: Wednesday, March 4</div>
 
+  <!-- Spending Dashboard -->
+  <div class="dashboard" id="dashboard">
+    <div class="dashboard-header" onclick="toggleDashboard()">
+      <h2>Spending Dashboard</h2>
+      <span class="dashboard-toggle" id="dashToggle">Show</span>
+    </div>
+    <div class="dashboard-body" id="dashBody">
+      <div class="dash-grid" id="dashGrid"></div>
+      <div class="dash-categories" id="dashCategories"></div>
+    </div>
+  </div>
+
+  <!-- Price Alerts -->
+  <div class="alerts-section" id="alertsSection" style="display:none"></div>
+
+  <!-- Frequency Recommendations -->
+  <div class="freq-recs" id="freqRecs" style="display:none"></div>
+
+  <!-- Implementation Progress -->
+  <div class="progress-section" id="progressSection">
+    <div class="progress-label" id="progressLabel">Implementing changes...</div>
+    <div class="progress-bar-track"><div class="progress-bar-fill" id="progressFill"></div></div>
+    <div class="progress-detail" id="progressDetail"></div>
+  </div>
+
   <div class="controls">
     <button onclick="selectAll()">Select All</button>
     <button onclick="deselectAll()">Deselect All</button>
-<button class="primary" onclick="sendSelections()">Send</button>
+    <button id="sortBtn" onclick="toggleSortMode()">Smart Sort</button>
+    <button class="primary" onclick="saveSelections()">Save</button>
+    <button class="danger" onclick="showImplementModal()">Implement</button>
     <input type="text" class="search" placeholder="Filter items..." oninput="filterItems(this.value)">
   </div>
 
@@ -88,56 +220,79 @@
 
   <ul class="item-list" id="itemList"></ul>
 
+  <div class="deletion-section" id="deletionSection" style="display:none">
+    <div class="deletion-header">Deletion Candidates</div>
+    <div id="deletionList"></div>
+  </div>
+
   <div class="toast" id="toast"></div>
+
+  <!-- Implement Confirmation Modal -->
+  <div class="modal-overlay" id="implementModal">
+    <div class="modal">
+      <h2>Confirm Implementation</h2>
+      <p style="font-size:0.85rem;color:#777;margin-bottom:12px">The following actions will be performed on your Amazon S&S account:</p>
+      <div class="modal-actions" id="modalActions"></div>
+      <div class="modal-buttons">
+        <button class="btn-cancel" onclick="closeImplementModal()">Cancel</button>
+        <button class="btn-confirm" onclick="executeImplement()">Confirm & Execute</button>
+      </div>
+    </div>
+  </div>
 
   <script>
     // ========== Item Data ==========
     const items = [
-      { id: 13, name: "Presto! Toilet Paper (24 Family Mega Rolls)", price: "$24.64", qty: 3, freq: "1 month", alternatives: [] },
-      { id: 43, name: "Lavazza Espresso Whole Bean Coffee (2-pack)", price: "$34.19", qty: 2, freq: "1 month", alternatives: [] },
-      { id: 32, name: "Purina Friskies Variety Pack Cat Food (40 cans)", price: "$31.12", qty: 2, freq: "1 month", alternatives: [] },
-      { id: 18, name: "Purina Friskies Shreds Cat Food (24 cans)", price: "$19.15", qty: 2, freq: "1 month", alternatives: [] },
-      { id: 5, name: "Presto! Paper Towels (12 Huge Rolls)", price: "$25.49", qty: 1, freq: "1 month", alternatives: [] },
-      { id: 35, name: "Blue Diamond Dark Chocolate Almonds (25 oz)", price: "$9.76", qty: 2, freq: "1 month", alternatives: [] },
-      { id: 10, name: "Purina Cat Chow Naturals Indoor (13 lb)", price: "$16.13", qty: 1, freq: "1 month", alternatives: [] },
-      { id: 20, name: "Terrasoul Organic Sunflower Seeds (2 lbs)", price: "$13.49", qty: 1, freq: "1 month", alternatives: [] },
-      { id: 31, name: "Happy Belly Roasted Almonds (24 oz)", price: "$7.56", qty: 1, freq: "1 month", alternatives: [] },
-      { id: 22, name: "Blue Diamond Wasabi & Soy Sauce Almonds (16 oz)", price: "$6.79", qty: 1, freq: "1 month", alternatives: [] },
-      { id: 30, name: "Purina ONE Dog Food Beef & Salmon (27.5 lb)", price: "", qty: 1, freq: "1 month", alternatives: [] },
-      { id: 29, name: "Har Bracha Tahini Paste (12 pack)", price: "$94.97", qty: 1, freq: "2 months", alternatives: [] },
-      { id: 3, name: "Lavazza Super Crema Whole Bean Coffee (2.2 lb)", price: "$31.43", qty: 1, freq: "2 months", alternatives: [] },
-      { id: 1, name: "Mucinex 12 Hour Maximum Strength 1200mg (48 tablets)", price: "$27.79", qty: 1, freq: "2 months", alternatives: [] },
-      { id: 28, name: "PUREPLUS 9690 Refrigerator Water Filter (4 pack)", price: "$27.38", qty: 1, freq: "2 months", alternatives: [] },
-      { id: 41, name: "Amazon Basics Liquid Hand Soap Refill (2-pack)", price: "$8.02", qty: 1, freq: "2 months", alternatives: [] },
-      { id: 33, name: "Downy CALM Mega Dryer Sheets Lavender (130 ct)", price: "$7.35", qty: 1, freq: "2 months", alternatives: [] },
-      { id: 9, name: "Hill's Prescription Diet t/d Cat Food (8.5 lb)", price: "", qty: 1, freq: "2 months", alternatives: [] },
-      { id: 14, name: "Gillette Clinical Deodorant Cool Wave (3-pack)", price: "$43.32", qty: 2, freq: "3 months", alternatives: [] },
-      { id: 40, name: "Endangered Species Dark Chocolate 88% (12 bars)", price: "$47.49", qty: 1, freq: "3 months", alternatives: [] },
-      { id: 26, name: "Triple Strength Fish Oil Omega 3 (180 softgels)", price: "$45.01", qty: 1, freq: "3 months", alternatives: [] },
-      { id: 47, name: "Brawny Tear-A-Square Paper Towels (12 XL Rolls)", price: "$26.77", qty: 1, freq: "3 months", alternatives: [] },
-      { id: 21, name: "Energizer Ultimate Lithium 9V (2 pack)", price: "$26.50", qty: 1, freq: "3 months", alternatives: [] },
-      { id: 27, name: "Vicks VapoShower Plus (12 count)", price: "$21.79", qty: 1, freq: "3 months", alternatives: [] },
-      { id: 39, name: "GUM Soft-Picks Advanced (90ct, 3-pack)", price: "$19.79", qty: 1, freq: "5 months", alternatives: [] },
-      { id: 46, name: "Biotrue Contact Solution (10oz, 2-pack)", price: "$14.44", qty: 1, freq: "5 months", alternatives: [] },
-      { id: 25, name: "Scotch Magic Tape (6 rolls w/ dispensers)", price: "$13.33", qty: 1, freq: "4 months", alternatives: [] },
-      { id: 45, name: "Gillette Clinical Deodorant Arctic Ice (2.6 oz)", price: "$11.02", qty: 8, freq: "6 months", alternatives: [] },
-      { id: 36, name: "Dr. Elsey's Ultra Unscented Cat Litter (40 lb)", price: "$20.69", qty: 4, freq: "6 months", alternatives: [] },
-      { id: 19, name: "Nautica Voyage EDT (6.7 oz)", price: "$25.37", qty: 1, freq: "6 months", alternatives: [] },
-      { id: 8, name: "Nescafe Taster's Choice Instant Coffee (2x 7oz)", price: "$22.92", qty: 1, freq: "6 months", alternatives: [] },
-      { id: 12, name: "Sensodyne Pronamel Whitening Toothpaste (4-pack)", price: "$21.24", qty: 1, freq: "6 months", alternatives: [] },
-      { id: 7, name: "Gillette ProGlide Razor Refills (8 count)", price: "$19.76", qty: 1, freq: "6 months", alternatives: [] },
-      { id: 15, name: "Lysol Disinfectant Wipes (4-pack)", price: "$19.65", qty: 1, freq: "6 months", alternatives: [] },
-      { id: 6, name: "Febreze AIR Linen & Sky (6-pack)", price: "$18.94", qty: 1, freq: "6 months", alternatives: [] },
-      { id: 2, name: "CeraVe Foaming Facial Cleanser (19 oz)", price: "$15.27", qty: 1, freq: "6 months", alternatives: [] },
-      { id: 11, name: "Energizer 123 Lithium Batteries (6 pack)", price: "$11.05", qty: 1, freq: "6 months", alternatives: [] },
-      { id: 38, name: "Oral-B Glide Floss Pro-Health Mint (3-pack)", price: "$9.47", qty: 1, freq: "6 months", alternatives: [] },
-      { id: 16, name: "O'Keeffe's Working Hands (3.4 oz)", price: "$9.13", qty: 1, freq: "6 months", alternatives: [] },
-      { id: 23, name: "Carlyle Melatonin 12mg (180 tablets)", price: "$8.54", qty: 1, freq: "6 months", alternatives: [] },
-      { id: 34, name: "Dove White Peach Body Scrub (15 oz)", price: "$6.77", qty: 1, freq: "6 months", alternatives: [] },
-      { id: 4, name: "Energizer 2032 Batteries (2 count)", price: "$3.82", qty: 1, freq: "6 months", alternatives: [] },
-      { id: 17, name: "Reynolds Quick Cut Plastic Wrap (225 sq ft)", price: "$3.39", qty: 1, freq: "6 months", alternatives: [] },
-      { id: 42, name: "Lebanon Valley Tahineh (32 oz)", price: "", qty: 1, freq: "", note: "unavailable", alternatives: [] },
+      { id: 13, name: "Presto! Toilet Paper (24 Family Mega Rolls)", price: "$24.64", qty: 3, freq: "1 month", category: "household", alternatives: [] },
+      { id: 43, name: "Lavazza Espresso Whole Bean Coffee (2-pack)", price: "$34.19", qty: 2, freq: "1 month", category: "food", alternatives: [] },
+      { id: 32, name: "Purina Friskies Variety Pack Cat Food (40 cans)", price: "$31.12", qty: 2, freq: "1 month", category: "pet", alternatives: [] },
+      { id: 18, name: "Purina Friskies Shreds Cat Food (24 cans)", price: "$19.15", qty: 2, freq: "1 month", category: "pet", alternatives: [] },
+      { id: 5, name: "Presto! Paper Towels (12 Huge Rolls)", price: "$25.49", qty: 1, freq: "1 month", category: "household", alternatives: [] },
+      { id: 35, name: "Blue Diamond Dark Chocolate Almonds (25 oz)", price: "$9.76", qty: 2, freq: "1 month", category: "food", alternatives: [] },
+      { id: 10, name: "Purina Cat Chow Naturals Indoor (13 lb)", price: "$16.13", qty: 1, freq: "1 month", category: "pet", alternatives: [] },
+      { id: 20, name: "Terrasoul Organic Sunflower Seeds (2 lbs)", price: "$13.49", qty: 1, freq: "1 month", category: "food", alternatives: [] },
+      { id: 31, name: "Happy Belly Roasted Almonds (24 oz)", price: "$7.56", qty: 1, freq: "1 month", category: "food", alternatives: [] },
+      { id: 22, name: "Blue Diamond Wasabi & Soy Sauce Almonds (16 oz)", price: "$6.79", qty: 1, freq: "1 month", category: "food", alternatives: [] },
+      { id: 30, name: "Purina ONE Dog Food Beef & Salmon (27.5 lb)", price: "", qty: 1, freq: "1 month", category: "pet", alternatives: [] },
+      { id: 29, name: "Har Bracha Tahini Paste (12 pack)", price: "$94.97", qty: 1, freq: "2 months", category: "food", alternatives: [] },
+      { id: 3, name: "Lavazza Super Crema Whole Bean Coffee (2.2 lb)", price: "$31.43", qty: 1, freq: "2 months", category: "food", alternatives: [] },
+      { id: 1, name: "Mucinex 12 Hour Maximum Strength 1200mg (48 tablets)", price: "$27.79", qty: 1, freq: "2 months", category: "personal", alternatives: [] },
+      { id: 28, name: "PUREPLUS 9690 Refrigerator Water Filter (4 pack)", price: "$27.38", qty: 1, freq: "2 months", category: "household", alternatives: [] },
+      { id: 41, name: "Amazon Basics Liquid Hand Soap Refill (2-pack)", price: "$8.02", qty: 1, freq: "2 months", category: "household", alternatives: [] },
+      { id: 33, name: "Downy CALM Mega Dryer Sheets Lavender (130 ct)", price: "$7.35", qty: 1, freq: "2 months", category: "household", alternatives: [] },
+      { id: 9, name: "Hill's Prescription Diet t/d Cat Food (8.5 lb)", price: "", qty: 1, freq: "2 months", category: "pet", alternatives: [] },
+      { id: 14, name: "Gillette Clinical Deodorant Cool Wave (3-pack)", price: "$43.32", qty: 2, freq: "3 months", category: "personal", alternatives: [] },
+      { id: 40, name: "Endangered Species Dark Chocolate 88% (12 bars)", price: "$47.49", qty: 1, freq: "3 months", category: "food", alternatives: [] },
+      { id: 26, name: "Triple Strength Fish Oil Omega 3 (180 softgels)", price: "$45.01", qty: 1, freq: "3 months", category: "personal", alternatives: [] },
+      { id: 47, name: "Brawny Tear-A-Square Paper Towels (12 XL Rolls)", price: "$26.77", qty: 1, freq: "3 months", category: "household", alternatives: [] },
+      { id: 21, name: "Energizer Ultimate Lithium 9V (2 pack)", price: "$26.50", qty: 1, freq: "3 months", category: "household", alternatives: [] },
+      { id: 27, name: "Vicks VapoShower Plus (12 count)", price: "$21.79", qty: 1, freq: "3 months", category: "personal", alternatives: [] },
+      { id: 39, name: "GUM Soft-Picks Advanced (90ct, 3-pack)", price: "$19.79", qty: 1, freq: "5 months", category: "personal", alternatives: [] },
+      { id: 46, name: "Biotrue Contact Solution (10oz, 2-pack)", price: "$14.44", qty: 1, freq: "5 months", category: "personal", alternatives: [] },
+      { id: 25, name: "Scotch Magic Tape (6 rolls w/ dispensers)", price: "$13.33", qty: 1, freq: "4 months", category: "household", alternatives: [] },
+      { id: 45, name: "Gillette Clinical Deodorant Arctic Ice (2.6 oz)", price: "$11.02", qty: 8, freq: "6 months", category: "personal", alternatives: [] },
+      { id: 36, name: "Dr. Elsey's Ultra Unscented Cat Litter (40 lb)", price: "$20.69", qty: 4, freq: "6 months", category: "pet", alternatives: [] },
+      { id: 19, name: "Nautica Voyage EDT (6.7 oz)", price: "$25.37", qty: 1, freq: "6 months", category: "personal", alternatives: [] },
+      { id: 8, name: "Nescafe Taster's Choice Instant Coffee (2x 7oz)", price: "$22.92", qty: 1, freq: "6 months", category: "food", alternatives: [] },
+      { id: 12, name: "Sensodyne Pronamel Whitening Toothpaste (4-pack)", price: "$21.24", qty: 1, freq: "6 months", category: "personal", alternatives: [] },
+      { id: 7, name: "Gillette ProGlide Razor Refills (8 count)", price: "$19.76", qty: 1, freq: "6 months", category: "personal", alternatives: [] },
+      { id: 15, name: "Lysol Disinfectant Wipes (4-pack)", price: "$19.65", qty: 1, freq: "6 months", category: "household", alternatives: [] },
+      { id: 6, name: "Febreze AIR Linen & Sky (6-pack)", price: "$18.94", qty: 1, freq: "6 months", category: "household", alternatives: [] },
+      { id: 2, name: "CeraVe Foaming Facial Cleanser (19 oz)", price: "$15.27", qty: 1, freq: "6 months", category: "personal", alternatives: [] },
+      { id: 11, name: "Energizer 123 Lithium Batteries (6 pack)", price: "$11.05", qty: 1, freq: "6 months", category: "household", alternatives: [] },
+      { id: 38, name: "Oral-B Glide Floss Pro-Health Mint (3-pack)", price: "$9.47", qty: 1, freq: "6 months", category: "personal", alternatives: [] },
+      { id: 16, name: "O'Keeffe's Working Hands (3.4 oz)", price: "$9.13", qty: 1, freq: "6 months", category: "personal", alternatives: [] },
+      { id: 23, name: "Carlyle Melatonin 12mg (180 tablets)", price: "$8.54", qty: 1, freq: "6 months", category: "personal", alternatives: [] },
+      { id: 34, name: "Dove White Peach Body Scrub (15 oz)", price: "$6.77", qty: 1, freq: "6 months", category: "personal", alternatives: [] },
+      { id: 4, name: "Energizer 2032 Batteries (2 count)", price: "$3.82", qty: 1, freq: "6 months", category: "household", alternatives: [] },
+      { id: 17, name: "Reynolds Quick Cut Plastic Wrap (225 sq ft)", price: "$3.39", qty: 1, freq: "6 months", category: "household", alternatives: [] },
+      { id: 42, name: "Lebanon Valley Tahineh (32 oz)", price: "", qty: 1, freq: "", note: "unavailable", category: "food", alternatives: [] },
     ];
+
+    // ========== Category Labels ==========
+    const CATEGORY_LABELS = {
+      pet: 'Pet', food: 'Food & Beverage', household: 'Household', personal: 'Personal Care'
+    };
 
     // ========== Helpers ==========
     function parseFreqMonths(freq) {
@@ -146,9 +301,20 @@
       return match ? parseInt(match[1]) : Infinity;
     }
 
+    function parseFreqDays(freq) {
+      const m = parseFreqMonths(freq);
+      return m === Infinity ? null : m * 30;
+    }
+
     function totalCost(item) {
       const p = parseFloat(item.price.replace('$', ''));
       return isNaN(p) ? 0 : p * item.qty;
+    }
+
+    function monthlyEquivalent(item) {
+      const m = parseFreqMonths(item.freq);
+      if (m === Infinity) return 0;
+      return totalCost(item) / m;
     }
 
     function freqGroupKey(item) {
@@ -161,6 +327,41 @@
 
     function freqGroupLabel(key) {
       return { 1: 'Every month', 2: 'Every 2 months', 3: 'Every 3 months', 4: 'Every 4\u20135 months', 6: 'Every 6 months', 99: 'Special' }[key] || 'Other';
+    }
+
+    // ========== Urgency Scoring ==========
+    function computeUrgency(item) {
+      const oh = orderHistory[item.id];
+      if (!oh || !oh.lastOrdered || !oh.avgIntervalDays) {
+        // Fallback: frequency-based
+        const m = parseFreqMonths(item.freq);
+        if (m <= 1) return { score: 0.9, label: 'Due soon', tier: 'due-soon' };
+        if (m <= 3) return { score: 0.5, label: 'Maybe', tier: 'maybe' };
+        return { score: 0.2, label: 'Stock OK', tier: 'stock-ok' };
+      }
+
+      const daysSinceLast = oh.daysSinceLast || Math.round((Date.now() - new Date(oh.lastOrdered).getTime()) / 86400000);
+      const score = daysSinceLast / oh.avgIntervalDays;
+
+      if (score >= 0.8) return { score, label: 'Due soon', tier: 'due-soon' };
+      if (score >= 0.5) return { score, label: 'Maybe', tier: 'maybe' };
+      return { score, label: 'Stock OK', tier: 'stock-ok' };
+    }
+
+    function predictNextDate(item) {
+      const oh = orderHistory[item.id];
+      if (!oh || !oh.lastOrdered) return null;
+      const interval = oh.avgIntervalDays || parseFreqDays(item.freq);
+      if (!interval) return null;
+      const last = new Date(oh.lastOrdered);
+      const next = new Date(last.getTime() + interval * 86400000);
+      return next;
+    }
+
+    function formatShortDate(d) {
+      if (!d) return '';
+      const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      return months[d.getMonth()] + ' ' + d.getDate();
     }
 
     // ========== Firebase ==========
@@ -179,6 +380,10 @@
     let sendQueueRef = null;
     let cancelQueueRef = null;
     let priceDataRef = null;
+    let competitorPricesRef = null;
+    let priceHistoryRef = null;
+    let implementStatusRef = null;
+    let alertsRef = null;
     let firebaseReady = false;
 
     function initFirebase() {
@@ -191,9 +396,13 @@
           sendQueueRef = db.ref('sendQueue');
           cancelQueueRef = db.ref('cancelQueue');
           priceDataRef = db.ref('priceData');
+          competitorPricesRef = db.ref('competitorPrices');
+          priceHistoryRef = db.ref('priceHistory');
+          implementStatusRef = db.ref('implementStatus');
+          alertsRef = db.ref('alerts');
           firebaseReady = true;
 
-          // Connection status indicator
+          // Connection status
           db.ref('.info/connected').on('value', snap => {
             const dot = document.getElementById('syncDot');
             if (snap.val() === true) {
@@ -205,7 +414,7 @@
             }
           });
 
-          // Listen for changes from other clients
+          // Selections sync
           selectionsRef.on('value', snapshot => {
             const data = snapshot.val();
             if (!data) return;
@@ -222,7 +431,7 @@
             }
           });
 
-          // Sync cancelQueue from Firebase
+          // Cancel queue sync
           cancelQueueRef.on('value', snapshot => {
             const data = snapshot.val();
             if (data) {
@@ -232,7 +441,7 @@
             }
           });
 
-          // Load price data from Firebase (written by scraper)
+          // Price data
           priceDataRef.on('value', snapshot => {
             const data = snapshot.val();
             if (!data) return;
@@ -244,10 +453,10 @@
                 if (pd.snsPrice && !item.price) item.price = '$' + pd.snsPrice.toFixed(2);
               }
             });
-            renderItems(currentFilter());
+            renderAll();
           });
 
-          // Load item ASINs for product links
+          // Item ASINs
           db.ref('itemConfig').on('value', snapshot => {
             const data = snapshot.val();
             if (!data) return;
@@ -258,7 +467,49 @@
             renderItems(currentFilter());
           });
 
-          // Push current state to Firebase on first connect
+          // Order history
+          db.ref('orderHistory').on('value', snapshot => {
+            const data = snapshot.val();
+            if (!data) return;
+            orderHistory = data;
+            renderAll();
+          });
+
+          // Competitor prices
+          competitorPricesRef.on('value', snapshot => {
+            const data = snapshot.val();
+            if (!data) return;
+            competitorPrices = data;
+            renderItems(currentFilter());
+          });
+
+          // Price history (for trends)
+          priceHistoryRef.on('value', snapshot => {
+            const data = snapshot.val();
+            if (!data) return;
+            priceHistory = data;
+            renderItems(currentFilter());
+          });
+
+          // Alerts
+          alertsRef.on('value', snapshot => {
+            const data = snapshot.val();
+            alerts = data || {};
+            renderAlerts();
+          });
+
+          // Implementation status
+          implementStatusRef.on('value', snapshot => {
+            const data = snapshot.val();
+            if (!data) {
+              document.getElementById('progressSection').classList.remove('active');
+              return;
+            }
+            implementStatus = data;
+            renderProgress();
+          });
+
+          // Push current state
           const updates = {};
           items.forEach(item => { updates[item.id] = !!state[item.id]; });
           selectionsRef.update(updates);
@@ -322,16 +573,294 @@
     let cancelQueue = JSON.parse(localStorage.getItem('sns-cancel-queue') || '{}');
     let priceData = {};
     let itemAsins = {};
+    let orderHistory = {};
+    let competitorPrices = {};
+    let priceHistory = {};
+    let alerts = {};
+    let implementStatus = {};
+    let sortMode = 'frequency'; // 'frequency' or 'urgency'
 
     window.addEventListener('hashchange', () => {
       state = loadState();
       renderItems(currentFilter());
     });
 
+    // ========== Spending Dashboard ==========
+    function computeDashboard() {
+      const kept = items.filter(i => state[i.id]);
+      const thisDelivery = kept.reduce((sum, i) => sum + totalCost(i), 0);
+      const monthlySpend = items.reduce((sum, i) => sum + monthlyEquivalent(i), 0);
+      const annualSpend = monthlySpend * 12;
+
+      // S&S savings vs one-time prices
+      let snsSavings = 0;
+      items.forEach(item => {
+        const pd = priceData[item.id];
+        if (pd && pd.snsPrice && pd.oneTimePrice && pd.oneTimePrice > pd.snsPrice) {
+          const freqMonths = parseFreqMonths(item.freq);
+          if (freqMonths !== Infinity) {
+            snsSavings += (pd.oneTimePrice - pd.snsPrice) * item.qty * (12 / freqMonths);
+          }
+        }
+      });
+
+      // Potential savings from recommendations
+      let potentialSavings = 0;
+      items.forEach(item => {
+        // Best alternative savings
+        const allAlts = getAllAlternatives(item);
+        const bestAlt = allAlts.sort((a, b) => (a.unitPriceNum || a.priceNum || Infinity) - (b.unitPriceNum || b.priceNum || Infinity))[0];
+        if (bestAlt) {
+          const currentPrice = parseFloat(item.price.replace('$', ''));
+          const altPrice = bestAlt.priceNum || parseFloat((bestAlt.price || '').replace('$', ''));
+          if (altPrice && currentPrice && altPrice < currentPrice) {
+            const freqMonths = parseFreqMonths(item.freq);
+            if (freqMonths !== Infinity) {
+              potentialSavings += (currentPrice - altPrice) * item.qty * (12 / freqMonths);
+            }
+          }
+        }
+      });
+
+      // Category breakdown
+      const categories = {};
+      items.forEach(item => {
+        const cat = item.category || 'other';
+        if (!categories[cat]) categories[cat] = 0;
+        categories[cat] += monthlyEquivalent(item);
+      });
+
+      return { thisDelivery, monthlySpend, annualSpend, snsSavings, potentialSavings, categories };
+    }
+
+    function renderDashboard() {
+      const d = computeDashboard();
+      document.getElementById('dashGrid').innerHTML = `
+        <div class="dash-card"><div class="dash-value">$${d.thisDelivery.toFixed(2)}</div><div class="dash-label">This Delivery</div></div>
+        <div class="dash-card"><div class="dash-value">$${d.monthlySpend.toFixed(0)}</div><div class="dash-label">Monthly Estimate</div></div>
+        <div class="dash-card"><div class="dash-value">$${d.annualSpend.toFixed(0)}</div><div class="dash-label">Annual Projected</div></div>
+        <div class="dash-card"><div class="dash-value" style="color:#1e7e34">$${d.snsSavings.toFixed(0)}</div><div class="dash-label">S&S Savings / Year</div></div>
+        <div class="dash-card"><div class="dash-value" style="color:#146eb4">$${d.potentialSavings.toFixed(0)}</div><div class="dash-label">Potential Savings</div></div>
+      `;
+
+      const catHtml = Object.entries(d.categories)
+        .sort((a, b) => b[1] - a[1])
+        .map(([cat, monthly]) => `<div class="cat-row"><span>${CATEGORY_LABELS[cat] || cat}</span><span>$${monthly.toFixed(0)}/mo ($${(monthly * 12).toFixed(0)}/yr)</span></div>`)
+        .join('');
+      document.getElementById('dashCategories').innerHTML = catHtml ? `<h3>By Category</h3>${catHtml}` : '';
+    }
+
+    function toggleDashboard() {
+      const body = document.getElementById('dashBody');
+      const toggle = document.getElementById('dashToggle');
+      body.classList.toggle('open');
+      toggle.textContent = body.classList.contains('open') ? 'Hide' : 'Show';
+      if (body.classList.contains('open')) renderDashboard();
+    }
+
+    // ========== Frequency Optimizer ==========
+    function computeFreqRecommendations() {
+      const recs = [];
+      items.forEach(item => {
+        const oh = orderHistory[item.id];
+        if (!oh || !oh.avgIntervalDays || oh.orderCount < 3) return;
+        const freqDays = parseFreqDays(item.freq);
+        if (!freqDays) return;
+
+        const ratio = oh.avgIntervalDays / freqDays;
+        if (ratio >= 1.4) {
+          // Item is being used slower than subscribed frequency
+          const suggestedMonths = Math.round(oh.avgIntervalDays / 30);
+          const currentMonths = parseFreqMonths(item.freq);
+          if (suggestedMonths > currentMonths) {
+            const monthlyCost = totalCost(item) / currentMonths;
+            const newMonthlyCost = totalCost(item) / suggestedMonths;
+            const annualSavings = (monthlyCost - newMonthlyCost) * 12;
+            recs.push({
+              itemId: item.id,
+              itemName: item.name,
+              currentFreq: item.freq,
+              suggestedFreq: `${suggestedMonths} month${suggestedMonths > 1 ? 's' : ''}`,
+              avgInterval: oh.avgIntervalDays,
+              annualSavings,
+            });
+          }
+        }
+      });
+      return recs.sort((a, b) => b.annualSavings - a.annualSavings);
+    }
+
+    function renderFreqRecommendations() {
+      const recs = computeFreqRecommendations();
+      const section = document.getElementById('freqRecs');
+      if (recs.length === 0) {
+        section.style.display = 'none';
+        return;
+      }
+      section.style.display = 'block';
+      section.innerHTML = '<h3>Frequency Recommendations</h3>' + recs.map(r => `
+        <div class="freq-rec-card">
+          <div class="rec-title">${r.itemName}</div>
+          <div class="rec-detail">Switch from every ${r.currentFreq} to every ${r.suggestedFreq} &mdash; you only use it every ~${r.avgInterval} days</div>
+          <div class="rec-savings">Saves ~$${r.annualSavings.toFixed(0)}/year</div>
+        </div>
+      `).join('');
+    }
+
+    // ========== Price Alerts ==========
+    function renderAlerts() {
+      const section = document.getElementById('alertsSection');
+      const alertList = Object.entries(alerts).filter(([id, a]) => a && !a.dismissed);
+      if (alertList.length === 0) {
+        section.style.display = 'none';
+        return;
+      }
+      section.style.display = 'block';
+      section.innerHTML = alertList.map(([id, a]) => `
+        <div class="alert-card">
+          <div class="alert-title">${a.type === 'price_drop' ? 'Price Drop' : 'Alert'}: ${a.itemName || 'Item ' + id}</div>
+          <div class="alert-detail">${a.message || ''}</div>
+        </div>
+      `).join('');
+    }
+
+    // ========== Competitor + All Alternatives ==========
+    function getAllAlternatives(item) {
+      const all = [];
+
+      // Amazon alternatives from priceData
+      if (item.alternatives) {
+        item.alternatives.forEach(alt => {
+          all.push({
+            ...alt,
+            store: 'amazon',
+            priceNum: parseFloat((alt.price || '').replace('$', '')) || null,
+            unitPriceNum: parseUnitPrice(alt.unitPrice),
+          });
+        });
+      }
+
+      // Competitor prices
+      const comp = competitorPrices[item.id];
+      if (comp) {
+        for (const [store, data] of Object.entries(comp)) {
+          if (!data || !data.price) continue;
+          all.push({
+            name: data.name,
+            price: '$' + (typeof data.price === 'number' ? data.price.toFixed(2) : data.price),
+            priceNum: typeof data.price === 'number' ? data.price : parseFloat(String(data.price).replace('$', '')),
+            unitPrice: data.unitPrice ? `$${data.unitPrice}/${data.unit || 'ea'}` : '',
+            unitPriceNum: data.unitPrice || null,
+            url: data.url,
+            store,
+            asin: null,
+          });
+        }
+      }
+
+      return all;
+    }
+
+    function parseUnitPrice(str) {
+      if (!str) return null;
+      const m = String(str).match(/\$?([\d.]+)/);
+      return m ? parseFloat(m[1]) : null;
+    }
+
+    function findBestValue(alts, currentItem) {
+      // Include the current item in comparison
+      const currentUnitPrice = parseUnitPrice(priceData[currentItem.id]?.computedUnitPrice || priceData[currentItem.id]?.unitPrice);
+      const currentPrice = parseFloat(currentItem.price.replace('$', '')) || null;
+
+      let best = null;
+      let bestMetric = Infinity;
+      let usingUnitPrice = alts.some(a => a.unitPriceNum);
+
+      if (usingUnitPrice) {
+        if (currentUnitPrice && currentUnitPrice < bestMetric) {
+          bestMetric = currentUnitPrice;
+          best = null; // current item is best
+        }
+        alts.forEach(a => {
+          if (a.unitPriceNum && a.unitPriceNum < bestMetric) {
+            bestMetric = a.unitPriceNum;
+            best = a;
+          }
+        });
+      } else {
+        if (currentPrice && currentPrice < bestMetric) {
+          bestMetric = currentPrice;
+          best = null;
+        }
+        alts.forEach(a => {
+          if (a.priceNum && a.priceNum < bestMetric) {
+            bestMetric = a.priceNum;
+            best = a;
+          }
+        });
+      }
+
+      return best; // null means current item is best value
+    }
+
+    // ========== Price Trend ==========
+    function getPriceTrend(itemId) {
+      const ph = priceHistory[itemId];
+      if (!ph) return null;
+      const dates = Object.keys(ph).sort();
+      if (dates.length < 2) return null;
+
+      const latest = ph[dates[dates.length - 1]];
+      const previous = ph[dates[dates.length - 2]];
+      const oldest = ph[dates[0]];
+
+      const latestPrice = latest?.snsPrice || latest?.price;
+      const previousPrice = previous?.snsPrice || previous?.price;
+      const oldestPrice = oldest?.snsPrice || oldest?.price;
+
+      if (!latestPrice || !previousPrice) return null;
+
+      const change = latestPrice - previousPrice;
+      const allPrices = dates.map(d => ph[d]?.snsPrice || ph[d]?.price).filter(p => p);
+      const minPrice = Math.min(...allPrices);
+      const is52wLow = latestPrice <= minPrice * 1.02; // within 2% of lowest
+
+      return {
+        direction: change > 0.1 ? 'up' : change < -0.1 ? 'down' : 'flat',
+        change: Math.abs(change),
+        is52wLow,
+        latestPrice,
+        minPrice,
+      };
+    }
+
     // ========== Rendering ==========
     function currentFilter() {
       const el = document.querySelector('.search');
       return el ? el.value : '';
+    }
+
+    function renderAll() {
+      renderDashboard();
+      renderFreqRecommendations();
+      renderDeletionCandidates();
+      renderAlerts();
+      renderItems(currentFilter());
+    }
+
+    function getSortedItems() {
+      if (sortMode === 'urgency') {
+        return [...items].sort((a, b) => {
+          const ua = computeUrgency(a);
+          const ub = computeUrgency(b);
+          return ub.score - ua.score;
+        });
+      }
+      return items; // default frequency order
+    }
+
+    function urgencyGroupLabel(tier) {
+      return { 'due-soon': 'Likely Needed', 'maybe': 'Maybe Needed', 'stock-ok': 'Not Yet' }[tier] || 'Other';
     }
 
     function renderItems(filter = '') {
@@ -341,17 +870,32 @@
       let idx = 0;
       let lastGroup = null;
 
-      items.forEach(item => {
+      const sorted = getSortedItems();
+
+      sorted.forEach(item => {
         if (filter && !item.name.toLowerCase().includes(lf)) return;
 
-        // Group divider (only when not filtering)
-        const gk = freqGroupKey(item);
-        if (gk !== lastGroup && !filter) {
-          lastGroup = gk;
-          const div = document.createElement('li');
-          div.className = 'group-divider';
-          div.textContent = freqGroupLabel(gk);
-          list.appendChild(div);
+        // Group dividers
+        if (!filter) {
+          if (sortMode === 'urgency') {
+            const urg = computeUrgency(item);
+            if (urg.tier !== lastGroup) {
+              lastGroup = urg.tier;
+              const div = document.createElement('li');
+              div.className = 'group-divider';
+              div.textContent = urgencyGroupLabel(urg.tier);
+              list.appendChild(div);
+            }
+          } else {
+            const gk = freqGroupKey(item);
+            if (gk !== lastGroup) {
+              lastGroup = gk;
+              const div = document.createElement('li');
+              div.className = 'group-divider';
+              div.textContent = freqGroupLabel(gk);
+              list.appendChild(div);
+            }
+          }
         }
 
         idx++;
@@ -368,50 +912,146 @@
         const prefAlt = altPreferences[item.id];
         const prefHtml = prefAlt ? `<span class="pref-alt">\u2192 ${prefAlt}</span>` : '';
 
-        // Alternatives expandable section
+        // Urgency badge
+        const urg = computeUrgency(item);
+        const urgBadge = `<span class="urgency-badge ${urg.tier}">${urg.label}</span>`;
+
+        // Predicted next date
+        const nextDate = predictNextDate(item);
+        const nextDateHtml = nextDate ? `<span class="next-date">Next: ~${formatShortDate(nextDate)}</span>` : '';
+
+        // Price data badges
+        const pd = priceData[item.id];
+        let badgeHtml = '';
+        if (pd && pd.savingsPct) badgeHtml += `<span class="price-badge">S&amp;S saves ${pd.savingsPct}%</span>`;
+
+        // Unit price display
+        const computedUnit = pd?.computedUnitPrice || pd?.unitPrice || '';
+        const unitPriceHtml = computedUnit ? `<span class="price-badge">${computedUnit}</span>` : '';
+
+        // Coupon badge
+        let couponHtml = '';
+        if (pd && pd.coupons && pd.coupons.length > 0) {
+          couponHtml = pd.coupons.map(c => `<span class="coupon-badge">${c}</span>`).join(' ');
+        }
+
+        // Price trend
+        const trend = getPriceTrend(item.id);
+        let trendHtml = '';
+        if (trend) {
+          if (trend.direction === 'down') trendHtml = `<span class="trend-down">\u2193 $${trend.change.toFixed(2)}</span>`;
+          else if (trend.direction === 'up') trendHtml = `<span class="trend-up">\u2191 $${trend.change.toFixed(2)}</span>`;
+          if (trend.is52wLow) trendHtml += ' <span class="week52-low">52-wk Low</span>';
+        }
+
+        // Order history badge
+        const oh = orderHistory[item.id];
+        let histBadge = '';
+        if (oh) {
+          const interval = oh.avgIntervalDays ? `~${oh.avgIntervalDays}d avg` : '';
+          const title = `${oh.orderCount} orders, last ${oh.lastOrdered}, avg interval ${oh.avgIntervalDays || '?'} days, total $${oh.totalSpent}`;
+          histBadge = `<span class="history-badge" title="${title}">${oh.orderCount} orders${interval ? ' / ' + interval : ''}</span>`;
+        }
+
+        // Bulk buy suggestion from priceData
+        let bulkHtml = '';
+        if (pd && pd.bulkSuggestion) {
+          bulkHtml = `<div class="bulk-suggestion">${pd.bulkSuggestion}</div>`;
+        }
+
+        // Alternatives section with competitor integration
+        const allAlts = getAllAlternatives(item);
         let altHtml = '';
-        if (item.alternatives && item.alternatives.length > 0) {
+        if (allAlts.length > 0) {
           const altId = 'alt-' + item.id;
-          const hasRec = item.alternatives.some(a => a.recommended);
-          altHtml = `<div class="alt-toggle" onclick="toggleAlts('${altId}')">Alternatives (${item.alternatives.length})${hasRec ? ' \u2014 cheaper option available' : ''}</div>`;
+          const bestVal = findBestValue(allAlts, item);
+          const betterCount = allAlts.filter(a => {
+            const cp = parseFloat(item.price.replace('$', ''));
+            return a.priceNum && cp && a.priceNum < cp;
+          }).length;
+          const storeCount = new Set(allAlts.map(a => a.store)).size;
+          const betterLabel = betterCount > 0 ? ` \u2014 ${betterCount} cheaper option${betterCount > 1 ? 's' : ''}` : '';
+
+          altHtml = `<div class="alt-toggle" onclick="toggleAlts('${altId}')">Alternatives (${allAlts.length} from ${storeCount} store${storeCount > 1 ? 's' : ''})${betterLabel}</div>`;
           altHtml += `<div class="alt-list" id="${altId}">`;
-          item.alternatives.forEach(alt => {
-            const isSelected = altPreferences[item.id] === alt.name;
-            const escapedName = alt.name.replace(/'/g, "\\'").replace(/"/g, '&quot;');
-            const recBadge = alt.recommended ? '<span class="alt-recommended">Best price</span>' : '';
+
+          allAlts.forEach(alt => {
+            const isAmazon = alt.store === 'amazon';
+            const isSelected = isAmazon && altPreferences[item.id] === alt.name;
+            const escapedName = (alt.name || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+            const isBest = bestVal === alt;
+            const bestBadge = isBest ? '<span class="alt-recommended">Best value</span>' : '';
+
+            const storeBadgeHtml = `<span class="store-badge ${alt.store}">${alt.store.charAt(0).toUpperCase() + alt.store.slice(1)}</span>`;
+
             const metaParts = [alt.price];
             if (alt.unitPrice) metaParts.push(alt.unitPrice);
-            const savingsClass = alt.savings && alt.savings.includes('more') ? 'alt-savings more-expensive' : 'alt-savings';
+
+            // Savings vs current
+            const currentPrice = parseFloat(item.price.replace('$', ''));
+            let savingsHtml = '';
+            if (alt.priceNum && currentPrice) {
+              const diff = currentPrice - alt.priceNum;
+              if (diff > 0) savingsHtml = `<div class="alt-savings">$${diff.toFixed(2)} less</div>`;
+              else if (diff < 0) savingsHtml = `<div class="alt-savings more-expensive">$${Math.abs(diff).toFixed(2)} more</div>`;
+            } else if (alt.savings) {
+              const savingsClass = alt.savings.includes('more') ? 'alt-savings more-expensive' : 'alt-savings';
+              savingsHtml = `<div class="${savingsClass}">${alt.savings}</div>`;
+            }
+
+            // Link/button
+            let actionBtn = '';
+            if (isAmazon && alt.asin) {
+              actionBtn = `<button class="alt-switch${isSelected ? ' selected' : ''}" onclick="switchAlt(${item.id}, '${escapedName}')">${isSelected ? 'Selected' : 'Switch'}</button>`;
+            } else if (alt.url) {
+              actionBtn = `<a href="${alt.url}" target="_blank" class="alt-link">View \u2192</a>`;
+            }
+
+            const nameLink = alt.asin
+              ? `<a href="https://www.amazon.com/dp/${alt.asin}" target="_blank" style="color:inherit;text-decoration:none">${alt.name}</a>`
+              : alt.url
+                ? `<a href="${alt.url}" target="_blank" style="color:inherit;text-decoration:none">${alt.name}</a>`
+                : alt.name;
+
             altHtml += `
               <div class="alt-item">
                 <div class="alt-info">
-                  <div class="alt-name">${alt.asin ? '<a href="https://www.amazon.com/dp/' + alt.asin + '" target="_blank" style="color:inherit;text-decoration:none">' + alt.name + '</a>' : alt.name}${recBadge}</div>
+                  <div class="alt-name">${storeBadgeHtml} ${nameLink}${bestBadge}</div>
                   <div class="alt-meta">${metaParts.join(' &middot; ')}</div>
-                  ${alt.savings ? '<div class="' + savingsClass + '">' + alt.savings + '</div>' : ''}
+                  ${savingsHtml}
                 </div>
-                <button class="alt-switch${isSelected ? ' selected' : ''}" onclick="switchAlt(${item.id}, '${escapedName}')">
-                  ${isSelected ? 'Selected' : 'Switch'}
-                </button>
+                ${actionBtn}
               </div>`;
           });
+
+          // Best value summary row
+          if (bestVal) {
+            const currentPrice = parseFloat(item.price.replace('$', ''));
+            const saving = currentPrice ? (currentPrice - (bestVal.priceNum || 0)) : 0;
+            const unitLabel = bestVal.unitPrice ? ` (${bestVal.unitPrice})` : '';
+            const savePer = saving > 0 ? `, saves $${saving.toFixed(2)}/order` : '';
+            altHtml += `<div class="best-value-row">\u2605 Best value: ${bestVal.store.charAt(0).toUpperCase() + bestVal.store.slice(1)} ${bestVal.name}${unitLabel}${savePer}</div>`;
+          }
+
           altHtml += '</div>';
         }
 
-        // Price badge from scraper data
-        const pd = priceData[item.id];
-        let badgeHtml = '';
-        if (pd && pd.savingsPct) badgeHtml = `<span class="price-badge">S&amp;S saves ${pd.savingsPct}%</span>`;
-        if (pd && pd.unitPrice) badgeHtml += `<span class="price-badge">${pd.unitPrice}</span>`;
+        // Price display with unit price
+        const priceDisplay = item.price + (computedUnit ? ` <span style="font-size:0.75rem;color:#777;font-weight:normal">${computedUnit}</span>` : '');
 
         li.innerHTML = `
           <span class="item-num">${idx}</span>
           <input type="checkbox" ${checked ? 'checked' : ''} onchange="toggle(${item.id}, this.checked)" id="cb-${item.id}">
           <div class="item-details">
             <div class="item-name">${itemAsins[item.id] ? '<a href="https://www.amazon.com/dp/' + itemAsins[item.id] + '" target="_blank" style="color:inherit">' + item.name + '</a>' : item.name}${prefHtml}${isCancelled ? '<span class="cancel-label">Pending cancellation</span>' : ''}</div>
-            <div class="item-meta">${item.freq ? 'Every ' + item.freq : ''}${item.qty > 1 ? ' &middot; Qty: ' + item.qty : ''} ${noteHtml}${badgeHtml}</div>
+            <div class="item-meta">
+              ${item.freq ? 'Every ' + item.freq : ''}${item.qty > 1 ? ' &middot; Qty: ' + item.qty : ''}
+              ${urgBadge} ${nextDateHtml} ${noteHtml} ${badgeHtml} ${unitPriceHtml} ${couponHtml} ${trendHtml} ${histBadge}
+            </div>
+            ${bulkHtml}
             ${altHtml}
           </div>
-          <span class="item-price">${item.price}</span>
+          <span class="item-price">${priceDisplay}</span>
           ${!isCancelled ? `<button class="cancel-btn" onclick="cancelItem(${item.id})" title="Cancel subscription">&times;</button>` : ''}
         `;
         list.appendChild(li);
@@ -451,6 +1091,14 @@
       renderItems(currentFilter());
     }
 
+    function toggleSortMode() {
+      sortMode = sortMode === 'frequency' ? 'urgency' : 'frequency';
+      const btn = document.getElementById('sortBtn');
+      btn.textContent = sortMode === 'urgency' ? 'Freq Sort' : 'Smart Sort';
+      btn.classList.toggle('active', sortMode === 'urgency');
+      renderItems(currentFilter());
+    }
+
     function updateSummary() {
       const kept = items.filter(i => state[i.id]);
       const skipped = items.filter(i => !state[i.id]);
@@ -458,43 +1106,141 @@
         const p = parseFloat(i.price.replace('$', ''));
         return sum + (isNaN(p) ? 0 : p * i.qty);
       }, 0);
+      const cancelCount = Object.keys(cancelQueue).length;
+      const switchCount = Object.keys(altPreferences).length;
       document.getElementById('summary').innerHTML = `
         <span>${kept.length}</span> items kept &mdash;
-        <span>${skipped.length}</span> to skip &mdash;
-        Estimated total: <span>$${total.toFixed(2)}</span>
+        <span>${skipped.length}</span> to skip
+        ${switchCount ? ' &mdash; <span>' + switchCount + '</span> switches' : ''}
+        ${cancelCount ? ' &mdash; <span style="color:#d32f2f">' + cancelCount + '</span> cancellations' : ''}
+        &mdash; Estimated total: <span>$${total.toFixed(2)}</span>
       `;
     }
 
-    function sendSelections() {
+    function saveSelections() {
       const kept = items.filter(i => state[i.id]).map(i => ({ id: i.id, name: i.name }));
       const skipped = items.filter(i => !state[i.id]).map(i => ({ id: i.id, name: i.name }));
       const payload = {
         selections: Object.assign({}, state),
         altPreferences: Object.assign({}, altPreferences),
         cancelQueue: Object.assign({}, cancelQueue),
-        kept: kept,
-        skipped: skipped,
+        kept,
+        skipped,
+        timestamp: Date.now(),
+        status: 'saved'
+      };
+
+      if (firebaseReady) {
+        sendQueueRef.set(payload).then(() => {
+          showToast('Selections saved to Firebase.');
+        }).catch(err => {
+          showToast('Error saving: ' + err.message);
+        });
+      } else {
+        navigator.clipboard.writeText(JSON.stringify(payload, null, 2)).then(() => {
+          showToast('Copied to clipboard (Firebase offline).');
+        }).catch(() => {
+          console.log('Save payload:', payload);
+          showToast('Logged to console.');
+        });
+      }
+    }
+
+    // ========== Implement Modal ==========
+    function buildActionList() {
+      const actions = [];
+
+      // Skips
+      items.filter(i => !state[i.id] && i.freq).forEach(i => {
+        actions.push({ type: 'skip', label: `Skip "${i.name}" from next delivery` });
+      });
+
+      // Switches
+      Object.entries(altPreferences).forEach(([id, altName]) => {
+        const item = items.find(i => i.id === parseInt(id));
+        if (item) actions.push({ type: 'switch', label: `Switch "${item.name}" to "${altName}"` });
+      });
+
+      // Cancellations
+      Object.entries(cancelQueue).forEach(([id, data]) => {
+        actions.push({ type: 'cancel', label: `Cancel subscription: "${data.name}"` });
+      });
+
+      return actions;
+    }
+
+    function showImplementModal() {
+      const actions = buildActionList();
+      const container = document.getElementById('modalActions');
+
+      if (actions.length === 0) {
+        container.innerHTML = '<p style="color:#777;font-size:0.85rem">No changes to implement. Skip items, switch alternatives, or mark cancellations first.</p>';
+      } else {
+        container.innerHTML = actions.map(a => `
+          <div class="modal-action">
+            <span class="action-type ${a.type}">${a.type}</span>
+            ${a.label}
+          </div>
+        `).join('');
+      }
+
+      document.getElementById('implementModal').classList.add('open');
+    }
+
+    function closeImplementModal() {
+      document.getElementById('implementModal').classList.remove('open');
+    }
+
+    function executeImplement() {
+      const actions = buildActionList();
+      if (actions.length === 0) {
+        closeImplementModal();
+        return;
+      }
+
+      const payload = {
+        selections: Object.assign({}, state),
+        altPreferences: Object.assign({}, altPreferences),
+        cancelQueue: Object.assign({}, cancelQueue),
+        actions,
         timestamp: Date.now(),
         status: 'pending'
       };
 
       if (firebaseReady) {
         sendQueueRef.set(payload).then(() => {
-          showToast('Sent! Claude Code will process your selections.');
+          closeImplementModal();
+          showToast('Implementation queued. Run implementer.mjs to execute.');
         }).catch(err => {
-          showToast('Error sending: ' + err.message);
+          showToast('Error: ' + err.message);
         });
       } else {
-        // Fallback: copy JSON to clipboard
-        navigator.clipboard.writeText(JSON.stringify(payload, null, 2)).then(() => {
-          showToast('Copied to clipboard (Firebase offline). Paste into Claude Code.');
-        }).catch(() => {
-          console.log('Send payload:', payload);
-          showToast('Logged to console. Check DevTools.');
-        });
+        closeImplementModal();
+        showToast('Firebase offline. Cannot queue implementation.');
       }
     }
 
+    // ========== Progress Bar ==========
+    function renderProgress() {
+      const section = document.getElementById('progressSection');
+      if (!implementStatus || !implementStatus.status || implementStatus.status === 'idle') {
+        section.classList.remove('active');
+        return;
+      }
+
+      section.classList.add('active');
+      const { completed = 0, total = 0, currentAction = '', status } = implementStatus;
+      const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
+
+      document.getElementById('progressLabel').textContent =
+        status === 'done' ? 'Implementation complete!' :
+        status === 'error' ? 'Implementation encountered an error' :
+        `Implementing changes... (${completed}/${total})`;
+      document.getElementById('progressFill').style.width = pct + '%';
+      document.getElementById('progressDetail').textContent = currentAction;
+    }
+
+    // ========== Alt / Cancel / Filter ==========
     function toggleAlts(id) {
       const el = document.getElementById(id);
       if (el) el.classList.toggle('open');
@@ -514,7 +1260,6 @@
       const item = items.find(i => i.id === id);
       if (!item) return;
       if (cancelQueue[id]) {
-        // Already cancelled — offer to undo
         if (confirm('Undo cancellation for "' + item.name + '"?')) {
           delete cancelQueue[id];
           localStorage.setItem('sns-cancel-queue', JSON.stringify(cancelQueue));
@@ -529,7 +1274,7 @@
       localStorage.setItem('sns-cancel-queue', JSON.stringify(cancelQueue));
       if (firebaseReady) cancelQueueRef.child(String(id)).set(cancelQueue[id]);
       renderItems(currentFilter());
-      showToast('Marked for cancellation. Click Send to confirm.');
+      showToast('Marked for cancellation.');
     }
 
     function filterItems(val) {
@@ -543,9 +1288,42 @@
       setTimeout(() => t.classList.remove('show'), 2500);
     }
 
+    function renderDeletionCandidates() {
+      const section = document.getElementById('deletionSection');
+      const list = document.getElementById('deletionList');
+      const candidates = Object.entries(orderHistory).filter(([id, data]) => data.deletionCandidate);
+
+      if (candidates.length === 0) {
+        section.style.display = 'none';
+        return;
+      }
+
+      section.style.display = 'block';
+      list.innerHTML = '';
+
+      for (const [id, data] of candidates) {
+        const card = document.createElement('div');
+        card.className = 'deletion-card';
+        const asin = itemAsins[id];
+        const nameHtml = asin
+          ? `<a href="https://www.amazon.com/dp/${asin}" target="_blank" style="color:inherit">${data.itemName}</a>`
+          : data.itemName;
+        card.innerHTML = `
+          <div class="dc-name">${nameHtml}</div>
+          <div class="dc-reason">${data.deletionReason}</div>
+          <div class="dc-stats">
+            ${data.orderCount} orders | Avg interval: ${data.avgIntervalDays || '?'} days |
+            Last ordered: ${data.lastOrdered} (${data.daysSinceLast}d ago) |
+            Total spent: $${data.totalSpent}
+          </div>
+        `;
+        list.appendChild(card);
+      }
+    }
+
     // ========== Init ==========
     initFirebase();
-    renderItems();
+    renderAll();
   </script>
 </body>
 </html>
