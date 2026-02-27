@@ -95,6 +95,17 @@
     .store-badge.costco { background: #e31837; }
     .store-badge.sams { background: #0060a9; }
     .best-value-row { background: #e8f5e9; padding: 6px 8px; border-radius: 4px; margin-top: 6px; font-size: 0.8rem; color: #1b5e20; font-weight: 500; }
+    .recommendation { padding: 6px 10px; border-radius: 6px; font-size: 0.8rem; font-weight: 500; margin-top: 4px; display: flex; align-items: center; gap: 6px; }
+    .recommendation.rec-keep { background: #e8f5e9; color: #1b5e20; border-left: 3px solid #4caf50; }
+    .recommendation.rec-switch { background: #e3f2fd; color: #0d47a1; border-left: 3px solid #1976d2; }
+    .recommendation.rec-competitor { background: #fff3e0; color: #e65100; border-left: 3px solid #ff9800; }
+    .recommendation .rec-action { font-weight: 700; text-transform: uppercase; font-size: 0.7rem; padding: 1px 6px; border-radius: 3px; color: #fff; }
+    .recommendation .rec-action.keep { background: #4caf50; }
+    .recommendation .rec-action.switch { background: #1976d2; }
+    .recommendation .rec-action.buy { background: #ff9800; }
+    .recommendation .rec-detail { flex: 1; }
+    .recommendation .rec-savings { font-weight: 700; }
+    .recommendation a { color: inherit; }
     .alt-link { padding: 3px 10px; border: 1px solid #999; border-radius: 4px; background: #fff; color: #555; cursor: pointer; font-size: 0.75rem; margin-left: 8px; text-decoration: none; white-space: nowrap; }
     .alt-link:hover { background: #f5f5f5; }
 
@@ -823,6 +834,62 @@
       return best; // null means current item is cheapest
     }
 
+    // ========== Recommendation Engine ==========
+    function buildRecommendation(item, allAlts) {
+      const pd = priceData[item.id];
+      const currentPrice = parseFloat(item.price.replace('$', '')) || null;
+      if (!currentPrice && !pd?.computedUnitPriceNum) return null;
+
+      const bestVal = findBestValue(allAlts, item);
+      const currentUnit = pd?.computedUnit || null;
+      const currentUP = pd?.computedUnitPriceNum || null;
+
+      if (!bestVal) {
+        // Current item is cheapest — recommend keep
+        return { action: 'keep', text: 'Your current item is the best value.', savings: null };
+      }
+
+      // Compute savings text
+      let savingsText = '';
+      let annualSavings = null;
+      const freqMonths = parseFreqMonths(item.freq);
+
+      if (bestVal.comparableUnitPrice && currentUP) {
+        const diff = currentUP - bestVal.comparableUnitPrice;
+        savingsText = `$${diff.toFixed(2)}/${bestVal.comparableUnit} cheaper`;
+      } else if (bestVal.priceNum && currentPrice) {
+        const diff = currentPrice - bestVal.priceNum;
+        if (diff > 0) savingsText = `$${diff.toFixed(2)} less per order`;
+      }
+
+      if (bestVal.priceNum && currentPrice && freqMonths !== Infinity) {
+        annualSavings = (currentPrice - bestVal.priceNum) * item.qty * (12 / freqMonths);
+        if (annualSavings > 1) savingsText += ` (~$${annualSavings.toFixed(0)}/yr)`;
+      }
+
+      const storeName = bestVal.store.charAt(0).toUpperCase() + bestVal.store.slice(1);
+      const isAmazon = bestVal.store === 'amazon';
+      const nameShort = bestVal.name.length > 60 ? bestVal.name.slice(0, 57) + '...' : bestVal.name;
+
+      if (isAmazon) {
+        return {
+          action: 'switch',
+          text: `Switch to ${nameShort}`,
+          savings: savingsText,
+          alt: bestVal,
+          itemId: item.id,
+        };
+      } else {
+        return {
+          action: 'buy',
+          store: storeName,
+          text: `Buy at ${storeName}: ${nameShort}`,
+          savings: savingsText,
+          alt: bestVal,
+        };
+      }
+    }
+
     // ========== Price Trend ==========
     function getPriceTrend(itemId) {
       const ph = priceHistory[itemId];
@@ -983,9 +1050,30 @@
         // Alternatives section with competitor integration
         const allAlts = getAllAlternatives(item);
         let altHtml = '';
+        let recHtml = '';
+        if (allAlts.length === 0 && item.price) {
+          recHtml = `<div class="recommendation rec-keep"><span class="rec-action keep">Keep</span><span class="rec-detail">No alternatives found. Current item is your best option.</span></div>`;
+        }
         if (allAlts.length > 0) {
           const altId = 'alt-' + item.id;
           const bestVal = findBestValue(allAlts, item);
+
+          // Build recommendation (shown outside alt-list, always visible)
+          const rec = buildRecommendation(item, allAlts);
+          if (rec) {
+            if (rec.action === 'keep') {
+              recHtml = `<div class="recommendation rec-keep"><span class="rec-action keep">Keep</span><span class="rec-detail">${rec.text}</span></div>`;
+            } else if (rec.action === 'switch') {
+              const escapedRecName = (rec.alt.name || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+              const link = rec.alt.asin ? `<a href="https://www.amazon.com/dp/${rec.alt.asin}" target="_blank">${rec.text}</a>` : rec.text;
+              const switchBtn = rec.alt.asin ? ` <button class="alt-switch" onclick="switchAlt(${rec.itemId}, '${escapedRecName}')" style="font-size:0.7rem;padding:2px 8px">Switch</button>` : '';
+              recHtml = `<div class="recommendation rec-switch"><span class="rec-action switch">Switch</span><span class="rec-detail">${link}${rec.savings ? ' &mdash; <span class="rec-savings">' + rec.savings + '</span>' : ''}${switchBtn}</span></div>`;
+            } else if (rec.action === 'buy') {
+              const link = rec.alt.url ? `<a href="${rec.alt.url}" target="_blank">${rec.text}</a>` : rec.text;
+              recHtml = `<div class="recommendation rec-competitor"><span class="rec-action buy">Buy</span><span class="rec-detail">${link}${rec.savings ? ' &mdash; <span class="rec-savings">' + rec.savings + '</span>' : ''}</span></div>`;
+            }
+          }
+
           const betterCount = allAlts.filter(a => {
             const cp = parseFloat(item.price.replace('$', ''));
             return a.priceNum && cp && a.priceNum < cp;
@@ -1087,6 +1175,7 @@
               ${urgBadge} ${nextDateHtml} ${noteHtml} ${badgeHtml} ${unitPriceHtml} ${couponHtml} ${trendHtml} ${histBadge}
             </div>
             ${bulkHtml}
+            ${recHtml}
             ${altHtml}
           </div>
           <span class="item-price">${priceDisplay}</span>
