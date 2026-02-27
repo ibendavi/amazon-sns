@@ -488,12 +488,17 @@ async function scrapeAlternatives(page, itemName, currentAsin, currentPrice, max
         if (upm) { unitPrice = '$' + upm[1] + '/' + upm[2].trim(); break; }
       }
 
+      // Product image
+      const imgEl = result.querySelector('img.s-image');
+      const image = imgEl ? (imgEl.getAttribute('src') || '') : '';
+
       alts.push({
         name: (nameEl.textContent || '').trim().slice(0, 120),
         price: '$' + price.toFixed(2),
         priceNum: price,
         unitPrice,
         asin,
+        image,
       });
     }
     return alts;
@@ -501,23 +506,30 @@ async function scrapeAlternatives(page, itemName, currentAsin, currentPrice, max
 
   alternatives = alternatives.concat(searchAlts).slice(0, maxAlts);
 
-  // Enrich alternatives with short names — fetch full product title
+  // Enrich alternatives with short names or missing images — fetch product page
   for (const alt of alternatives) {
-    if (alt.asin && alt.name.length < 50) {
+    if (alt.asin && (alt.name.length < 50 || !alt.image)) {
       try {
-        log(`    Enriching short name "${alt.name}" via ${alt.asin}...`);
+        log(`    Enriching "${alt.name.slice(0, 40)}..." via ${alt.asin}...`);
         await page.goto(`https://www.amazon.com/dp/${alt.asin}`, { waitUntil: 'domcontentloaded', timeout: 15000 });
         await randomDelay(1500, 3000);
-        const fullTitle = await page.evaluate(() => {
-          const el = document.querySelector('#productTitle');
-          return el ? el.textContent.trim() : null;
+        const enriched = await page.evaluate(() => {
+          const titleEl = document.querySelector('#productTitle');
+          const imgEl = document.querySelector('#landingImage, #imgBlkFront, #main-image');
+          return {
+            title: titleEl ? titleEl.textContent.trim() : null,
+            image: imgEl ? (imgEl.getAttribute('src') || '') : null,
+          };
         });
-        if (fullTitle && fullTitle.length > alt.name.length) {
-          alt.name = fullTitle.slice(0, 150);
+        if (enriched.title && enriched.title.length > alt.name.length) {
+          alt.name = enriched.title.slice(0, 150);
           log(`    -> "${alt.name.slice(0, 80)}..."`);
         }
+        if (enriched.image && !alt.image) {
+          alt.image = enriched.image;
+        }
       } catch (e) {
-        log(`    Could not enrich name for ${alt.asin}: ${e.message}`);
+        log(`    Could not enrich ${alt.asin}: ${e.message}`);
       }
     }
   }

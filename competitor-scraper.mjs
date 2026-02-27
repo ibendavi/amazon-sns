@@ -240,6 +240,11 @@ export class TargetScraper extends BaseScraper {
         ? `https://www.target.com/p/-/A-${tcin}`
         : `https://www.target.com/s?searchTerm=${encodeURIComponent(item.searchTerm)}`;
 
+      // Product image
+      const imageUrl = item_data.enrichment?.images?.primary_image_url
+        || item_data.enrichment?.images?.content_labels?.[0]?.image_url
+        || '';
+
       if (!priceVal) {
         log(`  [target] Could not parse price from API for "${item.searchTerm}"`);
         return null;
@@ -251,6 +256,7 @@ export class TargetScraper extends BaseScraper {
         unitPrice: unitPrice,
         unit: unit,
         url: productUrl,
+        image: imageUrl,
         lastChecked: new Date().toISOString(),
       };
     } catch (err) {
@@ -274,31 +280,73 @@ export class TargetScraper extends BaseScraper {
       }
 
       const result = await this.page.evaluate(() => {
-        // Find product cards
-        const cards = document.querySelectorAll('[data-test="@web/ProductCard/ProductCardVariantDefault"], [data-test="product-grid"] > div');
+        // Find product cards — try multiple selectors for Target's evolving DOM
+        const cards = document.querySelectorAll(
+          '[data-test="@web/ProductCard/ProductCardVariantDefault"], ' +
+          '[data-test="product-grid"] > div, ' +
+          'section[data-test="product-grid"] > div, ' +
+          '[class*="ProductCardWrapper"], ' +
+          '[class*="styles_cardOuter"]'
+        );
         if (cards.length === 0) return null;
 
         const card = cards[0];
 
-        // Product name
-        const nameEl = card.querySelector('a[data-test="product-title"]')
-          || card.querySelector('[data-test="product-title"]')
-          || card.querySelector('a > div');
-        const name = nameEl ? nameEl.textContent.trim() : '';
+        // Product name — try many approaches
+        let name = '';
+        // 1. data-test product-title
+        const titleEl = card.querySelector('a[data-test="product-title"], [data-test="product-title"]');
+        if (titleEl) name = titleEl.textContent.trim();
+        // 2. Link with /p/ in href (product link text)
+        if (!name) {
+          const productLink = card.querySelector('a[href*="/p/"]');
+          if (productLink) name = productLink.textContent.trim();
+        }
+        // 3. aria-label on the main link
+        if (!name) {
+          const ariaLink = card.querySelector('a[aria-label]');
+          if (ariaLink) name = ariaLink.getAttribute('aria-label').trim();
+        }
+        // 4. First non-empty link text in the card
+        if (!name) {
+          const links = card.querySelectorAll('a');
+          for (const link of links) {
+            const text = link.textContent.trim();
+            if (text.length > 5 && !text.startsWith('$')) { name = text; break; }
+          }
+        }
+        // 5. Any heading element
+        if (!name) {
+          const heading = card.querySelector('h3, h4, [class*="Title"], [class*="title"]');
+          if (heading) name = heading.textContent.trim();
+        }
 
-        // Price
+        // Price — try multiple selectors
         const priceEl = card.querySelector('[data-test="current-price"]')
-          || card.querySelector('span[class*="CurrentPrice"]');
-        const priceText = priceEl ? priceEl.textContent.trim() : '';
+          || card.querySelector('span[class*="CurrentPrice"]')
+          || card.querySelector('span[class*="styles_price"]');
+        let priceText = priceEl ? priceEl.textContent.trim() : '';
+        // Fallback: find first $X.XX pattern in card text
+        if (!priceText) {
+          const match = card.textContent.match(/\$\d+\.\d{2}/);
+          if (match) priceText = match[0];
+        }
 
         // Unit price
         const unitEl = card.querySelector('[data-test="unit-price"]')
-          || card.querySelector('span[class*="UnitPrice"]');
-        const unitText = unitEl ? unitEl.textContent.trim() : '';
+          || card.querySelector('span[class*="UnitPrice"]')
+          || card.querySelector('[class*="styles_unitPrice"]');
+        let unitText = unitEl ? unitEl.textContent.trim() : '';
+        // Fallback: look for pattern like ($X.XX/ounce)
+        if (!unitText) {
+          const unitMatch = card.textContent.match(/\(\$[\d.]+\/[a-z ]+\)/i);
+          if (unitMatch) unitText = unitMatch[0];
+        }
 
         // URL
         const linkEl = card.querySelector('a[href*="/p/"]')
           || card.querySelector('a[data-test="product-title"]')
+          || card.querySelector('a[href*="target.com"]')
           || card.querySelector('a');
         let url = '';
         if (linkEl) {
@@ -306,7 +354,13 @@ export class TargetScraper extends BaseScraper {
           url = href.startsWith('http') ? href : 'https://www.target.com' + href;
         }
 
-        return { name, priceText, unitText, url };
+        // Product image
+        const imgEl = card.querySelector('img[src*="target.scene7.com"]')
+          || card.querySelector('picture img')
+          || card.querySelector('img[alt]');
+        const image = imgEl ? (imgEl.getAttribute('src') || '') : '';
+
+        return { name, priceText, unitText, url, image };
       });
 
       if (!result || !result.priceText) {
@@ -325,6 +379,7 @@ export class TargetScraper extends BaseScraper {
         unitPrice: unitPrice,
         unit: unit,
         url: result.url,
+        image: result.image || '',
         lastChecked: new Date().toISOString(),
       };
     } catch (err) {

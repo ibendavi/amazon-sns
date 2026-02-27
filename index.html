@@ -53,7 +53,8 @@
     .alt-toggle:hover { text-decoration: underline; }
     .alt-list { margin-top: 6px; padding: 8px 12px; background: #f9f9f9; border-radius: 6px; font-size: 0.82rem; display: none; }
     .alt-list.open { display: block; }
-    .alt-item { display: flex; align-items: center; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid #eee; }
+    .alt-item { display: flex; align-items: center; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #eee; gap: 8px; }
+    .alt-img { width: 40px; height: 40px; object-fit: contain; border-radius: 4px; flex-shrink: 0; background: #fff; }
     .alt-item:last-child { border-bottom: none; }
     .alt-info { flex: 1; }
     .alt-name { font-weight: 500; }
@@ -815,6 +816,7 @@
             comparableUnitPrice: hasMatchingUnit ? data.unitPrice : null,
             comparableUnit: hasMatchingUnit ? data.unit : null,
             url: data.url,
+            image: data.image || '',
             store,
             asin: null,
           });
@@ -1234,8 +1236,11 @@
                 ? `<a href="${alt.url}" target="_blank" style="color:inherit;text-decoration:none">${alt.name}</a>`
                 : alt.name;
 
+            const imgHtml = alt.image ? `<img class="alt-img" src="${alt.image}" alt="" loading="lazy">` : '';
+
             altHtml += `
               <div class="alt-item">
+                ${imgHtml}
                 <div class="alt-info">
                   <div class="alt-name">${storeBadgeHtml} ${nameLink}${bestBadge}</div>
                   <div class="alt-meta">${metaParts.join(' &middot; ')}</div>
