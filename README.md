@@ -10,31 +10,107 @@ A tool for managing and optimizing Amazon S&S subscriptions using an interactive
 
 ## How It Works
 
-### 1. Interactive Website (GitHub Pages)
+### 1. Review Pre-selected Items
 
-A single-page checklist for reviewing your next S&S delivery. Features:
+Open the site. Items are sorted by delivery frequency:
 
-- **Check/uncheck items** to mark what to keep vs. skip
-- **Share Link** — encodes your selections into a URL you can paste anywhere
-- **Optimize Prices** — shows a price comparison report (S&S vs. one-time) for checked items
-- **Copy unchecked items** — generates a list for batch price-checking
-- **Persistent state** via `localStorage` and URL hash parameters
-- Deadline alert, item search/filter, summary of kept/skipped/total cost
+- **Monthly items** (toilet paper, cat food, coffee, snacks) — pre-checked, almost always ordered
+- **Every 2 months** (tahini, water filters, soap, dryer sheets) — pre-checked
+- **Every 3 months** (deodorant, supplements, chocolate) — pre-checked
+- **Every 4–5 months** (tape, soft-picks, contact solution) — unchecked, actively confirm
+- **Every 6 months** (batteries, cologne, cleanser, litter) — unchecked, review each time
+- **Special** (vet-required, unavailable) — unchecked
 
-### 2. Claude Code + Playwright (Browser Automation)
+Within each group, items are sorted by total cost (highest first) so the most expensive items get your attention first.
 
-Claude Code drives a headless Chromium browser to:
+### 2. Check Alternatives (Coming Soon)
 
-- **Scrape S&S prices** from product pages and the management console
-- **Compare S&S vs. one-time prices** to verify discounts are genuine
-- **Check for coupons** on product pages
-- **Execute changes** — skip items, cancel subscriptions, adjust quantities
+Items with known alternatives show an expandable "Alternatives" section with pricing, unit prices, and savings. Click "Switch" to mark a preferred alternative — this gets included in the Send payload.
 
-Workflow: open the website → check/uncheck items → click Share Link → paste the URL into Claude Code → tell it what to do.
+### 3. Send to Claude Code
 
-### 3. Session Notes (`session-notes.md`)
+Click **Send** to submit your selections:
+- If Firebase is connected, writes to `sendQueue` node — Claude Code reads it directly
+- If offline, copies JSON to clipboard — paste into Claude Code
 
-A persistent record of every finding and change, including price comparisons, subscription IDs, and optimization results.
+Claude Code then:
+1. Skips unchecked items on Amazon
+2. Switches to selected alternatives
+3. Optimizes delivery frequencies
+
+### 4. Real-time Sync (Firebase)
+
+Both you and your wife can review the list simultaneously in separate browsers. Changes sync in real-time via Firebase Realtime Database. A green dot next to the title means sync is active; gray means offline (changes still save to localStorage).
+
+---
+
+## Firebase Setup
+
+The site works offline using localStorage. To enable real-time multi-browser sync:
+
+### 1. Create Firebase Project
+
+```bash
+# In a regular terminal (not Claude Code):
+firebase login
+firebase projects:create amazon-sns --display-name "Amazon S&S"
+```
+
+Or create via [Firebase Console](https://console.firebase.google.com):
+- Click "Add project" → name it `amazon-sns`
+
+### 2. Enable Anonymous Authentication
+
+Firebase Console → Build → Authentication → Sign-in method → Anonymous → Enable
+
+### 3. Create Realtime Database
+
+Firebase Console → Build → Realtime Database → Create Database → Start in test mode
+
+Set security rules:
+```json
+{
+  "rules": {
+    "selections": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    },
+    "sendQueue": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    }
+  }
+}
+```
+
+### 4. Get Config and Update index.html
+
+Firebase Console → Project settings → General → Your apps → Web app → Register app
+
+Copy the `firebaseConfig` object and paste it into the `firebaseConfig` const in `index.html`:
+
+```js
+const firebaseConfig = {
+  apiKey: "AIza...",
+  authDomain: "amazon-sns.firebaseapp.com",
+  databaseURL: "https://amazon-sns-default-rtdb.firebaseio.com",
+  projectId: "amazon-sns",
+  storageBucket: "amazon-sns.appspot.com",
+  messagingSenderId: "123456789",
+  appId: "1:123456789:web:abc123"
+};
+```
+
+---
+
+## Frequency Optimization (Future)
+
+Planned workflow:
+1. Scrape Amazon order history via Playwright
+2. Calculate actual consumption interval for each S&S item
+3. Compare actual vs. current frequency
+4. Generate recommendations report
+5. Execute frequency changes on Amazon after approval
 
 ---
 
@@ -51,7 +127,7 @@ A persistent record of every finding and change, including price comparisons, su
 | 5 | Presto Paper Towels (12 Huge) | $25.49 | 1 | 1 mo | $25.49 |
 | 6 | Febreze AIR Linen & Sky (6 pk) | $18.94 | 1 | 6 mo | $18.94 |
 | 7 | Gillette ProGlide Refills (8 ct) | $19.76 | 1 | 6 mo | $19.76 |
-| 8 | Nescafe Taster's Choice (2×7 oz) | $22.92 | 1 | 6 mo | $22.92 |
+| 8 | Nescafe Taster's Choice (2x7 oz) | $22.92 | 1 | 6 mo | $22.92 |
 | 9 | Hill's Rx t/d Cat Food (8.5 lb) | Vet auth | 1 | — | — |
 | 10 | Purina Cat Chow Naturals (13 lb) | $16.13 | 1 | 1 mo | $16.13 |
 | 11 | Energizer 123 Lithium (6 pk) | $11.05 | 1 | 6 mo | $11.05 |
@@ -90,90 +166,26 @@ A persistent record of every finding and change, including price comparisons, su
 
 ---
 
-## Price Comparison Results
-
-Checked on 2026-02-26. **All S&S discounts are genuine (5–15%).** No items where one-time purchase beats S&S. No active coupons found on any product page.
-
-| Item | S&S Price | One-Time | Savings |
-|------|-----------|----------|---------|
-| Har Bracha Tahini (12 pk) | $94.97 | $99.97 | $5.00 (5%) |
-| Gillette Clinical Cool Wave (3 pk) | $43.32 | $50.97 | $7.65 (15%) |
-| Gillette Clinical Arctic Ice (3 pk) | $30.57 | $35.97 | $5.40 (15%) |
-| Dr. Elsey's Ultra Cat Litter (40 lb) | $20.69 | $22.99 | $2.30 (10%) |
-| Triple Strength Fish Oil (180 ct) | $45.01 | $52.95 | $7.94 (15%) |
-| Presto Toilet Paper (24 Fam Mega) | $24.64 | $28.99 | $4.35 (15%) |
-| Lavazza Espresso (2-pack) | $34.19 | $37.99 | $3.80 (10%) |
-| Mucinex 12hr Max 1200mg (48 tab) | $27.79 | $32.69 | $4.90 (15%) |
-| Sensodyne Pronamel Whitening (4 pk) | $21.24 | $24.99 | $3.75 (15%) |
-
-**9 of 44 items checked.** Total S&S savings across checked items: ~$45/delivery.
-
----
-
 ## Optimizations Made (2026-02-26)
 
 ### Lavazza Espresso Consolidation — saves $58.68/year
 
 Had three overlapping Lavazza subscriptions delivering 4 bags/month at $73.27. Consolidated to a single 2-pack subscription at qty 2, delivering the same 4 bags/month at $68.38.
 
-- Cancelled two single-bag subscriptions (IDs: `SNSD0_TVSEWJRVDKKRTFT0R3RD`, `SNST0_094312D496FA486A8355`)
-- Increased 2-pack subscription to qty 2
-
 ### Duplicate Febreze Cancelled
 
-Removed an unavailable duplicate Febreze AIR subscription (ID: `SNSA0_XGZGQKXRZGAKPHPHVR96`) that was an accidental creation. Kept the active one (`SNSA0_06QM1FCESTM2EEGFDZC0`).
+Removed an unavailable duplicate Febreze AIR subscription.
 
 ### Fish Oil Price Drop Detected
 
 Management console showed $48.81 but the product page lists $45.01 for S&S. Saves $3.80/order = ~$15.20/year at quarterly frequency.
 
-### Gillette Arctic Ice 3-Pack — not yet available
-
-Investigated switching 8 individual units ($88.16) to 3-packs ($30.57 each = $10.19/unit). The 3-pack option is only available in Clear Gel, not Clinical Soft Solid. **On hold** until the right formulation appears.
-
----
-
-## How to Use
-
-### Review and edit your next delivery
-
-1. Open the [live site](https://ibendavi.github.io/amazon-sns/)
-2. Check items to keep, uncheck items to skip
-3. Click **Share Link** to copy a URL with your selections
-4. Paste the URL into Claude Code and say "skip all unchecked items on Amazon"
-
-### Run a price check on unchecked items
-
-1. On the site, click **Optimize Prices** → **Copy unchecked items for price check**
-2. Paste into Claude Code and say "compare S&S vs one-time prices for these items"
-3. Claude will use Playwright to scrape each product page and report back
-
-### Skip or cancel a subscription
-
-Tell Claude Code:
-- *"Skip item 29 (Har Bracha Tahini) from the March delivery"*
-- *"Cancel the subscription for item 4 (Energizer 2032)"*
-
-Claude navigates to `amazon.com/auto-deliveries`, finds the item, and executes the action.
-
----
-
-## Remaining Opportunities
-
-- **35 items** have not been price-checked yet (only 9 of 44 done)
-- Use the "Copy unchecked items for price check" button to generate a batch list
-- High-value unchecked items to prioritize:
-  - Gillette Clinical Arctic Ice ×8 ($88.16)
-  - Dr. Elsey's Cat Litter ×4 ($82.76) — unit price checked, but multi-pack alternatives not explored
-  - Presto Toilet Paper ×3 ($73.92) — unit price checked, but competitor brands not compared
-  - Lavazza Espresso 2-pack ×2 ($68.38)
-  - Purina Friskies Variety ×2 ($62.24)
-
 ---
 
 ## Tech Stack
 
-- **Frontend:** Single HTML file, vanilla JS, no dependencies
+- **Frontend:** Single HTML file, vanilla JS, no build step
 - **Hosting:** GitHub Pages
+- **Sync:** Firebase Realtime Database + Anonymous Auth (optional, falls back to localStorage)
 - **Automation:** Claude Code with Playwright MCP server (headless Chromium)
-- **Data:** `session-notes.md` for persistent findings; `localStorage` + URL hash for UI state
+- **Data:** localStorage + URL hash for UI state; Firebase for multi-browser sync

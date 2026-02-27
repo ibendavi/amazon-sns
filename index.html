@@ -3,13 +3,22 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Amazon Subscribe & Save - March 10 Delivery</title>
+  <title>Amazon Subscribe & Save</title>
   <link rel="icon" href="https://www.amazon.com/favicon.ico">
   <link rel="apple-touch-icon" href="https://www.amazon.com/favicon.ico">
+
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; color: #333; padding: 20px; }
-    h1 { font-size: 1.5rem; margin-bottom: 4px; }
+    .header-row { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+    h1 { font-size: 1.5rem; }
+    .sync-dot { width: 8px; height: 8px; border-radius: 50%; background: #999; transition: background 0.3s; flex-shrink: 0; }
+    .sync-dot.connected { background: #4caf50; }
     .subtitle { color: #666; margin-bottom: 6px; font-size: 0.9rem; }
     .deadline { color: #d32f2f; font-weight: 600; margin-bottom: 16px; font-size: 0.9rem; }
     .controls { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; align-items: center; }
@@ -17,57 +26,55 @@
     .controls button:hover { background: #e8e8e8; }
     .controls button.primary { background: #ff9900; color: #fff; border-color: #e88a00; font-weight: 600; }
     .controls button.primary:hover { background: #e88a00; }
-    .controls button.danger { background: #fff; color: #d32f2f; border-color: #d32f2f; }
-    .controls button.danger:hover { background: #fde8e8; }
-    .controls button.optimize { background: #146eb4; color: #fff; border-color: #0f5a94; font-weight: 600; }
-    .controls button.optimize:hover { background: #0f5a94; }
     .controls button.share { background: #fff; color: #146eb4; border-color: #146eb4; }
     .controls button.share:hover { background: #e8f0fe; }
     .summary { background: #fff; border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); font-size: 0.9rem; }
     .summary span { font-weight: 600; }
     .item-list { list-style: none; }
-    .item { background: #fff; border-radius: 8px; padding: 12px 16px; margin-bottom: 6px; display: flex; align-items: center; gap: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); transition: opacity 0.2s; }
+    .group-divider { padding: 10px 16px 6px; font-size: 0.8rem; font-weight: 600; color: #555; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid #ddd; margin-top: 18px; margin-bottom: 6px; }
+    .group-divider:first-child { margin-top: 0; }
+    .item { background: #fff; border-radius: 8px; padding: 12px 16px; margin-bottom: 6px; display: flex; align-items: flex-start; gap: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); transition: opacity 0.2s; }
     .item.unchecked { opacity: 0.45; }
-    .item input[type="checkbox"] { width: 20px; height: 20px; cursor: pointer; accent-color: #ff9900; flex-shrink: 0; }
-    .item-num { font-size: 0.8rem; color: #999; width: 24px; text-align: right; flex-shrink: 0; }
+    .item input[type="checkbox"] { width: 20px; height: 20px; cursor: pointer; accent-color: #ff9900; flex-shrink: 0; margin-top: 2px; }
+    .item-num { font-size: 0.8rem; color: #999; width: 24px; text-align: right; flex-shrink: 0; margin-top: 2px; }
     .item-details { flex: 1; min-width: 0; }
     .item-name { font-weight: 500; font-size: 0.95rem; }
     .item-meta { font-size: 0.8rem; color: #777; margin-top: 2px; }
-    .item-price { font-weight: 600; color: #111; white-space: nowrap; flex-shrink: 0; }
-    .price-badge { font-size: 0.7rem; padding: 2px 6px; border-radius: 4px; margin-left: 6px; font-weight: 600; }
-    .price-badge.good { background: #e6f4ea; color: #1e7e34; }
-    .price-badge.unchecked { background: #fff3e0; color: #e65100; }
+    .item-price { font-weight: 600; color: #111; white-space: nowrap; flex-shrink: 0; margin-top: 2px; }
     .unavailable { color: #d32f2f; font-style: italic; font-size: 0.8rem; }
     .vet-note { color: #e65100; font-style: italic; font-size: 0.8rem; }
-    .output-section { margin-top: 20px; background: #fff; border-radius: 8px; padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); display: none; }
-    .output-section h3 { margin-bottom: 8px; font-size: 1rem; }
-    .output-section pre { background: #f9f9f9; padding: 12px; border-radius: 6px; font-size: 0.85rem; white-space: pre-wrap; max-height: 400px; overflow-y: auto; }
     .search { padding: 8px 12px; border: 1px solid #ccc; border-radius: 6px; font-size: 0.9rem; width: 180px; }
     .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: #333; color: #fff; padding: 10px 24px; border-radius: 8px; font-size: 0.9rem; z-index: 999; opacity: 0; transition: opacity 0.3s; pointer-events: none; }
     .toast.show { opacity: 1; }
-    .opt-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin-top: 8px; }
-    .opt-table th { text-align: left; padding: 6px 8px; border-bottom: 2px solid #ddd; font-weight: 600; }
-    .opt-table td { padding: 6px 8px; border-bottom: 1px solid #eee; }
-    .opt-table tr.saving td { background: #e6f4ea; }
-    .opt-table tr.nodata td { background: #fff8e1; }
-    .opt-summary { margin: 12px 0; padding: 10px 14px; background: #e8f5e9; border-radius: 6px; font-size: 0.9rem; }
-    .opt-summary strong { color: #1b5e20; }
-    .opt-copy { margin-top: 12px; padding: 8px 16px; background: #ff9900; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-weight: 600; }
-    .opt-copy:hover { background: #e88a00; }
+    .alt-toggle { font-size: 0.8rem; color: #146eb4; cursor: pointer; margin-top: 4px; display: inline-block; }
+    .alt-toggle:hover { text-decoration: underline; }
+    .alt-list { margin-top: 6px; padding: 8px 12px; background: #f9f9f9; border-radius: 6px; font-size: 0.82rem; display: none; }
+    .alt-list.open { display: block; }
+    .alt-item { display: flex; align-items: center; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid #eee; }
+    .alt-item:last-child { border-bottom: none; }
+    .alt-info { flex: 1; }
+    .alt-name { font-weight: 500; }
+    .alt-meta { color: #777; font-size: 0.78rem; }
+    .alt-savings { color: #1e7e34; font-weight: 600; font-size: 0.78rem; }
+    .alt-switch { padding: 3px 10px; border: 1px solid #146eb4; border-radius: 4px; background: #fff; color: #146eb4; cursor: pointer; font-size: 0.75rem; margin-left: 8px; }
+    .alt-switch:hover { background: #e8f0fe; }
+    .alt-switch.selected { background: #146eb4; color: #fff; }
+    .pref-alt { color: #146eb4; font-size: 0.78rem; margin-left: 6px; }
   </style>
 </head>
 <body>
-  <h1>Amazon Subscribe & Save</h1>
+  <div class="header-row">
+    <h1>Amazon Subscribe & Save</h1>
+    <span class="sync-dot" id="syncDot" title="Offline"></span>
+  </div>
   <div class="subtitle">March 10, 2026 Delivery &mdash; <span id="itemCount">44</span> items</div>
   <div class="deadline">Last day to edit: Wednesday, March 4</div>
 
   <div class="controls">
     <button onclick="selectAll()">Select All</button>
     <button onclick="deselectAll()">Deselect All</button>
-    <button class="primary" onclick="saveSelections()">Save</button>
     <button class="share" onclick="shareLink()">Share Link</button>
-    <button class="danger" onclick="showSkipList()">Skip List</button>
-    <button class="optimize" onclick="optimizePrices()">Optimize Prices</button>
+    <button class="primary" onclick="sendSelections()">Send</button>
     <input type="text" class="search" placeholder="Filter items..." oninput="filterItems(this.value)">
   </div>
 
@@ -75,83 +82,158 @@
 
   <ul class="item-list" id="itemList"></ul>
 
-  <div class="output-section" id="outputSection">
-    <h3>Items to SKIP on Amazon:</h3>
-    <pre id="skipOutput"></pre>
-  </div>
-
-  <div class="output-section" id="optimizeSection">
-    <h3>Price Optimization Report</h3>
-    <div id="optimizeOutput"></div>
-  </div>
-
   <div class="toast" id="toast"></div>
 
   <script>
+    // ========== Item Data ==========
     const items = [
-      { id: 1, name: "Mucinex 12 Hour Maximum Strength 1200mg (48 tablets)", price: "$27.79", qty: 1, freq: "2 months" },
-      { id: 2, name: "CeraVe Foaming Facial Cleanser (19 oz)", price: "$15.27", qty: 1, freq: "6 months" },
-      { id: 3, name: "Lavazza Super Crema Whole Bean Coffee (2.2 lb)", price: "$31.43", qty: 1, freq: "2 months" },
-      { id: 4, name: "Energizer 2032 Batteries (2 count)", price: "$3.82", qty: 1, freq: "6 months" },
-      { id: 5, name: "Presto! Paper Towels (12 Huge Rolls)", price: "$25.49", qty: 1, freq: "1 month" },
-      { id: 6, name: "Febreze AIR Linen & Sky (6-pack)", price: "$18.94", qty: 1, freq: "6 months" },
-      { id: 7, name: "Gillette ProGlide Razor Refills (8 count)", price: "$19.76", qty: 1, freq: "6 months" },
-      { id: 8, name: "Nescafe Taster's Choice Instant Coffee (2x 7oz)", price: "$22.92", qty: 1, freq: "6 months" },
-      { id: 9, name: "Hill's Prescription Diet t/d Cat Food (8.5 lb)", price: "Vet approval needed", qty: 1, freq: "", note: "vet" },
-      { id: 10, name: "Purina Cat Chow Naturals Indoor (13 lb)", price: "$16.13", qty: 1, freq: "1 month" },
-      { id: 11, name: "Energizer 123 Lithium Batteries (6 pack)", price: "$11.05", qty: 1, freq: "6 months" },
-      { id: 12, name: "Sensodyne Pronamel Whitening Toothpaste (4-pack)", price: "$21.24", qty: 1, freq: "6 months" },
-      { id: 13, name: "Presto! Toilet Paper (24 Family Mega Rolls)", price: "$24.64", qty: 3, freq: "1 month" },
-      { id: 14, name: "Gillette Clinical Deodorant Cool Wave (3-pack)", price: "$43.32", qty: 2, freq: "3 months" },
-      { id: 15, name: "Lysol Disinfectant Wipes (4-pack)", price: "$19.65", qty: 1, freq: "6 months" },
-      { id: 16, name: "O'Keeffe's Working Hands (3.4 oz)", price: "$9.13", qty: 1, freq: "6 months" },
-      { id: 17, name: "Reynolds Quick Cut Plastic Wrap (225 sq ft)", price: "$3.39", qty: 1, freq: "6 months" },
-      { id: 18, name: "Purina Friskies Shreds Cat Food (24 cans)", price: "$19.15", qty: 2, freq: "1 month" },
-      { id: 19, name: "Nautica Voyage EDT (6.7 oz)", price: "$25.37", qty: 1, freq: "6 months" },
-      { id: 20, name: "Terrasoul Organic Sunflower Seeds (2 lbs)", price: "$13.49", qty: 1, freq: "1 month" },
-      { id: 21, name: "Energizer Ultimate Lithium 9V (2 pack)", price: "$26.50", qty: 1, freq: "3 months" },
-      { id: 22, name: "Blue Diamond Wasabi & Soy Sauce Almonds (16 oz)", price: "$6.79", qty: 1, freq: "1 month" },
-      { id: 23, name: "Carlyle Melatonin 12mg (180 tablets)", price: "$8.54", qty: 1, freq: "6 months" },
-      { id: 25, name: "Scotch Magic Tape (6 rolls w/ dispensers)", price: "$13.33", qty: 1, freq: "4 months" },
-      { id: 26, name: "Triple Strength Fish Oil Omega 3 (180 softgels)", price: "$45.01", qty: 1, freq: "3 months" },
-      { id: 27, name: "Vicks VapoShower Plus (12 count)", price: "$21.79", qty: 1, freq: "3 months" },
-      { id: 28, name: "PUREPLUS 9690 Refrigerator Water Filter (4 pack)", price: "$27.38", qty: 1, freq: "2 months" },
-      { id: 29, name: "Har Bracha Tahini Paste (12 pack)", price: "$94.97", qty: 1, freq: "2 months" },
-      { id: 30, name: "Purina ONE Dog Food Beef & Salmon (27.5 lb)", price: "", qty: 1, freq: "1 month" },
-      { id: 31, name: "Happy Belly Roasted Almonds (24 oz)", price: "$7.56", qty: 1, freq: "1 month" },
-      { id: 32, name: "Purina Friskies Variety Pack Cat Food (40 cans)", price: "$31.12", qty: 2, freq: "1 month" },
-      { id: 33, name: "Downy CALM Mega Dryer Sheets Lavender (130 ct)", price: "$7.35", qty: 1, freq: "2 months" },
-      { id: 34, name: "Dove White Peach Body Scrub (15 oz)", price: "$6.77", qty: 1, freq: "6 months" },
-      { id: 35, name: "Blue Diamond Dark Chocolate Almonds (25 oz)", price: "$9.76", qty: 2, freq: "1 month" },
-      { id: 36, name: "Dr. Elsey's Ultra Unscented Cat Litter (40 lb)", price: "$20.69", qty: 4, freq: "6 months" },
-      { id: 38, name: "Oral-B Glide Floss Pro-Health Mint (3-pack)", price: "$9.47", qty: 1, freq: "6 months" },
-      { id: 39, name: "GUM Soft-Picks Advanced (90ct, 3-pack)", price: "$19.79", qty: 1, freq: "5 months" },
-      { id: 40, name: "Endangered Species Dark Chocolate 88% (12 bars)", price: "$47.49", qty: 1, freq: "3 months" },
-      { id: 41, name: "Amazon Basics Liquid Hand Soap Refill (2-pack)", price: "$8.02", qty: 1, freq: "2 months" },
-      { id: 42, name: "Lebanon Valley Tahineh (32 oz)", price: "", qty: 1, freq: "", note: "unavailable" },
-      { id: 43, name: "Lavazza Espresso Whole Bean Coffee (2-pack)", price: "$34.19", qty: 2, freq: "1 month" },
-      { id: 45, name: "Gillette Clinical Deodorant Arctic Ice (2.6 oz)", price: "$11.02", qty: 8, freq: "6 months" },
-      { id: 46, name: "Biotrue Contact Solution (10oz, 2-pack)", price: "$14.44", qty: 1, freq: "5 months" },
-      { id: 47, name: "Brawny Tear-A-Square Paper Towels (12 XL Rolls)", price: "$26.77", qty: 1, freq: "3 months" },
+      { id: 13, name: "Presto! Toilet Paper (24 Family Mega Rolls)", price: "$24.64", qty: 3, freq: "1 month", alternatives: [] },
+      { id: 43, name: "Lavazza Espresso Whole Bean Coffee (2-pack)", price: "$34.19", qty: 2, freq: "1 month", alternatives: [] },
+      { id: 32, name: "Purina Friskies Variety Pack Cat Food (40 cans)", price: "$31.12", qty: 2, freq: "1 month", alternatives: [] },
+      { id: 18, name: "Purina Friskies Shreds Cat Food (24 cans)", price: "$19.15", qty: 2, freq: "1 month", alternatives: [] },
+      { id: 5, name: "Presto! Paper Towels (12 Huge Rolls)", price: "$25.49", qty: 1, freq: "1 month", alternatives: [] },
+      { id: 35, name: "Blue Diamond Dark Chocolate Almonds (25 oz)", price: "$9.76", qty: 2, freq: "1 month", alternatives: [] },
+      { id: 10, name: "Purina Cat Chow Naturals Indoor (13 lb)", price: "$16.13", qty: 1, freq: "1 month", alternatives: [] },
+      { id: 20, name: "Terrasoul Organic Sunflower Seeds (2 lbs)", price: "$13.49", qty: 1, freq: "1 month", alternatives: [] },
+      { id: 31, name: "Happy Belly Roasted Almonds (24 oz)", price: "$7.56", qty: 1, freq: "1 month", alternatives: [] },
+      { id: 22, name: "Blue Diamond Wasabi & Soy Sauce Almonds (16 oz)", price: "$6.79", qty: 1, freq: "1 month", alternatives: [] },
+      { id: 30, name: "Purina ONE Dog Food Beef & Salmon (27.5 lb)", price: "", qty: 1, freq: "1 month", alternatives: [] },
+      { id: 29, name: "Har Bracha Tahini Paste (12 pack)", price: "$94.97", qty: 1, freq: "2 months", alternatives: [] },
+      { id: 3, name: "Lavazza Super Crema Whole Bean Coffee (2.2 lb)", price: "$31.43", qty: 1, freq: "2 months", alternatives: [] },
+      { id: 1, name: "Mucinex 12 Hour Maximum Strength 1200mg (48 tablets)", price: "$27.79", qty: 1, freq: "2 months", alternatives: [] },
+      { id: 28, name: "PUREPLUS 9690 Refrigerator Water Filter (4 pack)", price: "$27.38", qty: 1, freq: "2 months", alternatives: [] },
+      { id: 41, name: "Amazon Basics Liquid Hand Soap Refill (2-pack)", price: "$8.02", qty: 1, freq: "2 months", alternatives: [] },
+      { id: 33, name: "Downy CALM Mega Dryer Sheets Lavender (130 ct)", price: "$7.35", qty: 1, freq: "2 months", alternatives: [] },
+      { id: 14, name: "Gillette Clinical Deodorant Cool Wave (3-pack)", price: "$43.32", qty: 2, freq: "3 months", alternatives: [] },
+      { id: 40, name: "Endangered Species Dark Chocolate 88% (12 bars)", price: "$47.49", qty: 1, freq: "3 months", alternatives: [] },
+      { id: 26, name: "Triple Strength Fish Oil Omega 3 (180 softgels)", price: "$45.01", qty: 1, freq: "3 months", alternatives: [] },
+      { id: 47, name: "Brawny Tear-A-Square Paper Towels (12 XL Rolls)", price: "$26.77", qty: 1, freq: "3 months", alternatives: [] },
+      { id: 21, name: "Energizer Ultimate Lithium 9V (2 pack)", price: "$26.50", qty: 1, freq: "3 months", alternatives: [] },
+      { id: 27, name: "Vicks VapoShower Plus (12 count)", price: "$21.79", qty: 1, freq: "3 months", alternatives: [] },
+      { id: 39, name: "GUM Soft-Picks Advanced (90ct, 3-pack)", price: "$19.79", qty: 1, freq: "5 months", alternatives: [] },
+      { id: 46, name: "Biotrue Contact Solution (10oz, 2-pack)", price: "$14.44", qty: 1, freq: "5 months", alternatives: [] },
+      { id: 25, name: "Scotch Magic Tape (6 rolls w/ dispensers)", price: "$13.33", qty: 1, freq: "4 months", alternatives: [] },
+      { id: 45, name: "Gillette Clinical Deodorant Arctic Ice (2.6 oz)", price: "$11.02", qty: 8, freq: "6 months", alternatives: [] },
+      { id: 36, name: "Dr. Elsey's Ultra Unscented Cat Litter (40 lb)", price: "$20.69", qty: 4, freq: "6 months", alternatives: [] },
+      { id: 19, name: "Nautica Voyage EDT (6.7 oz)", price: "$25.37", qty: 1, freq: "6 months", alternatives: [] },
+      { id: 8, name: "Nescafe Taster's Choice Instant Coffee (2x 7oz)", price: "$22.92", qty: 1, freq: "6 months", alternatives: [] },
+      { id: 12, name: "Sensodyne Pronamel Whitening Toothpaste (4-pack)", price: "$21.24", qty: 1, freq: "6 months", alternatives: [] },
+      { id: 7, name: "Gillette ProGlide Razor Refills (8 count)", price: "$19.76", qty: 1, freq: "6 months", alternatives: [] },
+      { id: 15, name: "Lysol Disinfectant Wipes (4-pack)", price: "$19.65", qty: 1, freq: "6 months", alternatives: [] },
+      { id: 6, name: "Febreze AIR Linen & Sky (6-pack)", price: "$18.94", qty: 1, freq: "6 months", alternatives: [] },
+      { id: 2, name: "CeraVe Foaming Facial Cleanser (19 oz)", price: "$15.27", qty: 1, freq: "6 months", alternatives: [] },
+      { id: 11, name: "Energizer 123 Lithium Batteries (6 pack)", price: "$11.05", qty: 1, freq: "6 months", alternatives: [] },
+      { id: 38, name: "Oral-B Glide Floss Pro-Health Mint (3-pack)", price: "$9.47", qty: 1, freq: "6 months", alternatives: [] },
+      { id: 16, name: "O'Keeffe's Working Hands (3.4 oz)", price: "$9.13", qty: 1, freq: "6 months", alternatives: [] },
+      { id: 23, name: "Carlyle Melatonin 12mg (180 tablets)", price: "$8.54", qty: 1, freq: "6 months", alternatives: [] },
+      { id: 34, name: "Dove White Peach Body Scrub (15 oz)", price: "$6.77", qty: 1, freq: "6 months", alternatives: [] },
+      { id: 4, name: "Energizer 2032 Batteries (2 count)", price: "$3.82", qty: 1, freq: "6 months", alternatives: [] },
+      { id: 17, name: "Reynolds Quick Cut Plastic Wrap (225 sq ft)", price: "$3.39", qty: 1, freq: "6 months", alternatives: [] },
+      { id: 9, name: "Hill's Prescription Diet t/d Cat Food (8.5 lb)", price: "Vet approval needed", qty: 1, freq: "", note: "vet", alternatives: [] },
+      { id: 42, name: "Lebanon Valley Tahineh (32 oz)", price: "", qty: 1, freq: "", note: "unavailable", alternatives: [] },
     ];
 
-    // Price comparison data from 2026-02-26 check
-    const priceData = {
-      1:  { oneTime: 32.69, sns: 27.79, pct: 15, checked: "2026-02-26" },
-      12: { oneTime: 24.99, sns: 21.24, pct: 15, checked: "2026-02-26" },
-      13: { oneTime: 28.99, sns: 24.64, pct: 15, checked: "2026-02-26" },
-      14: { oneTime: 50.97, sns: 43.32, pct: 15, checked: "2026-02-26" },
-      26: { oneTime: 52.95, sns: 45.01, pct: 15, checked: "2026-02-26", note: "Price dropped from $48.81" },
-      29: { oneTime: 99.97, sns: 94.97, pct: 5,  checked: "2026-02-26" },
-      36: { oneTime: 22.99, sns: 20.69, pct: 10, checked: "2026-02-26" },
-      43: { oneTime: 37.99, sns: 34.19, pct: 10, checked: "2026-02-26" },
-      45: { oneTime: 12.96, sns: 11.02, pct: 15, checked: "2026-02-26" },
+    // ========== Helpers ==========
+    function parseFreqMonths(freq) {
+      if (!freq) return Infinity;
+      const match = freq.match(/(\d+)\s*month/);
+      return match ? parseInt(match[1]) : Infinity;
+    }
+
+    function totalCost(item) {
+      const p = parseFloat(item.price.replace('$', ''));
+      return isNaN(p) ? 0 : p * item.qty;
+    }
+
+    function freqGroupKey(item) {
+      const m = parseFreqMonths(item.freq);
+      if (m >= 1 && m <= 3) return m;
+      if (m >= 4 && m <= 5) return 4;
+      if (m === 6) return 6;
+      return 99;
+    }
+
+    function freqGroupLabel(key) {
+      return { 1: 'Every month', 2: 'Every 2 months', 3: 'Every 3 months', 4: 'Every 4\u20135 months', 6: 'Every 6 months', 99: 'Special' }[key] || 'Other';
+    }
+
+    // ========== Firebase ==========
+    const firebaseConfig = {
+      apiKey: "AIzaSyDmkRRociBxezM-EMquIZEhClIt9QKNEJo",
+      authDomain: "sns-ibendavi.firebaseapp.com",
+      databaseURL: "https://amazon-sns-ibendavi-default-rtdb.firebaseio.com",
+      projectId: "amazon-sns-ibendavi",
+      storageBucket: "amazon-sns-ibendavi.firebasestorage.app",
+      messagingSenderId: "220407199939",
+      appId: "1:220407199939:web:22bd1bb1ffa53bb8e6ca76"
     };
 
-    // --- State management: URL hash + localStorage ---
+    let db = null;
+    let selectionsRef = null;
+    let sendQueueRef = null;
+    let firebaseReady = false;
+
+    function initFirebase() {
+      if (!firebaseConfig.apiKey) return;
+      try {
+        firebase.initializeApp(firebaseConfig);
+        firebase.auth().signInAnonymously().then(() => {
+          db = firebase.database();
+          selectionsRef = db.ref('selections');
+          sendQueueRef = db.ref('sendQueue');
+          firebaseReady = true;
+
+          // Connection status indicator
+          db.ref('.info/connected').on('value', snap => {
+            const dot = document.getElementById('syncDot');
+            if (snap.val() === true) {
+              dot.classList.add('connected');
+              dot.title = 'Synced';
+            } else {
+              dot.classList.remove('connected');
+              dot.title = 'Offline';
+            }
+          });
+
+          // Listen for changes from other clients
+          selectionsRef.on('value', snapshot => {
+            const data = snapshot.val();
+            if (!data) return;
+            let changed = false;
+            items.forEach(item => {
+              if (data[item.id] !== undefined && state[item.id] !== data[item.id]) {
+                state[item.id] = data[item.id];
+                changed = true;
+              }
+            });
+            if (changed) {
+              saveToLocalStorage();
+              renderItems(currentFilter());
+            }
+          });
+
+          // Push current state to Firebase on first connect
+          const updates = {};
+          items.forEach(item => { updates[item.id] = !!state[item.id]; });
+          selectionsRef.update(updates);
+        }).catch(err => console.warn('Firebase auth failed:', err));
+      } catch (e) {
+        console.warn('Firebase not configured:', e.message);
+      }
+    }
+
+    // ========== State Management ==========
+    function defaultState() {
+      const st = {};
+      items.forEach(item => {
+        const m = parseFreqMonths(item.freq);
+        st[item.id] = (m <= 3);
+      });
+      return st;
+    }
+
     function encodeState(st) {
-      const unchecked = items.filter(i => !st[i.id]).map(i => i.id);
-      return unchecked.join(',');
+      return items.filter(i => !st[i.id]).map(i => i.id).join(',');
     }
 
     function decodeHash(hash) {
@@ -170,39 +252,58 @@
       const hash = window.location.hash;
       if (hash.startsWith('#s=')) {
         const st = decodeHash(hash.substring(3));
-        localStorage.setItem('sns-march2026', JSON.stringify(st));
+        localStorage.setItem('sns-selections', JSON.stringify(st));
         return st;
       }
-      const saved = localStorage.getItem('sns-march2026');
+      const saved = localStorage.getItem('sns-selections');
       if (saved) return JSON.parse(saved);
-      const st = {};
-      items.forEach(i => st[i.id] = true);
-      return st;
+      return defaultState();
     }
 
-    let state = loadState();
+    function saveToLocalStorage() {
+      localStorage.setItem('sns-selections', JSON.stringify(state));
+    }
 
     function saveState() {
-      localStorage.setItem('sns-march2026', JSON.stringify(state));
+      saveToLocalStorage();
       const enc = encodeState(state);
       history.replaceState(null, '', enc ? '#s=' + enc : window.location.pathname);
     }
 
-    // Sync when URL hash changes (e.g. back/forward)
+    let state = loadState();
+    let altPreferences = JSON.parse(localStorage.getItem('sns-alt-prefs') || '{}');
+
     window.addEventListener('hashchange', () => {
       state = loadState();
-      renderItems(document.querySelector('.search').value);
+      renderItems(currentFilter());
     });
 
-    // --- Rendering ---
+    // ========== Rendering ==========
+    function currentFilter() {
+      const el = document.querySelector('.search');
+      return el ? el.value : '';
+    }
+
     function renderItems(filter = '') {
       const list = document.getElementById('itemList');
       list.innerHTML = '';
-      const lowerFilter = filter.toLowerCase();
+      const lf = filter.toLowerCase();
       let idx = 0;
+      let lastGroup = null;
 
       items.forEach(item => {
-        if (filter && !item.name.toLowerCase().includes(lowerFilter)) return;
+        if (filter && !item.name.toLowerCase().includes(lf)) return;
+
+        // Group divider (only when not filtering)
+        const gk = freqGroupKey(item);
+        if (gk !== lastGroup && !filter) {
+          lastGroup = gk;
+          const div = document.createElement('li');
+          div.className = 'group-divider';
+          div.textContent = freqGroupLabel(gk);
+          list.appendChild(div);
+        }
+
         idx++;
         const checked = state[item.id];
         const li = document.createElement('li');
@@ -212,18 +313,41 @@
         if (item.note === 'unavailable') noteHtml = '<span class="unavailable">Temporarily Unavailable</span>';
         if (item.note === 'vet') noteHtml = '<span class="vet-note">Vet approval required</span>';
 
-        const pd = priceData[item.id];
-        let badgeHtml = '';
-        if (pd) {
-          badgeHtml = `<span class="price-badge good">S&S saves ${pd.pct}%</span>`;
+        // Alternative preference indicator
+        const prefAlt = altPreferences[item.id];
+        const prefHtml = prefAlt ? `<span class="pref-alt">\u2192 ${prefAlt}</span>` : '';
+
+        // Alternatives expandable section
+        let altHtml = '';
+        if (item.alternatives && item.alternatives.length > 0) {
+          const altId = 'alt-' + item.id;
+          altHtml = `<div class="alt-toggle" onclick="toggleAlts('${altId}')">Alternatives (${item.alternatives.length})</div>`;
+          altHtml += `<div class="alt-list" id="${altId}">`;
+          item.alternatives.forEach(alt => {
+            const isSelected = altPreferences[item.id] === alt.name;
+            const escapedName = alt.name.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+            altHtml += `
+              <div class="alt-item">
+                <div class="alt-info">
+                  <div class="alt-name">${alt.name}</div>
+                  <div class="alt-meta">${alt.price} &middot; ${alt.unitPrice}${alt.note ? ' &middot; ' + alt.note : ''}</div>
+                  ${alt.savings ? '<div class="alt-savings">' + alt.savings + '</div>' : ''}
+                </div>
+                <button class="alt-switch${isSelected ? ' selected' : ''}" onclick="switchAlt(${item.id}, '${escapedName}')">
+                  ${isSelected ? 'Selected' : 'Switch'}
+                </button>
+              </div>`;
+          });
+          altHtml += '</div>';
         }
 
         li.innerHTML = `
           <span class="item-num">${idx}</span>
           <input type="checkbox" ${checked ? 'checked' : ''} onchange="toggle(${item.id}, this.checked)" id="cb-${item.id}">
           <div class="item-details">
-            <div class="item-name">${item.name}${badgeHtml}</div>
+            <div class="item-name">${item.name}${prefHtml}</div>
             <div class="item-meta">${item.freq ? 'Every ' + item.freq : ''}${item.qty > 1 ? ' &middot; Qty: ' + item.qty : ''} ${noteHtml}</div>
+            ${altHtml}
           </div>
           <span class="item-price">${item.price}</span>
         `;
@@ -234,22 +358,34 @@
       updateSummary();
     }
 
+    // ========== Actions ==========
     function toggle(id, checked) {
       state[id] = checked;
       saveState();
-      renderItems(document.querySelector('.search').value);
+      if (firebaseReady) selectionsRef.child(String(id)).set(checked);
+      renderItems(currentFilter());
     }
 
     function selectAll() {
       items.forEach(i => state[i.id] = true);
       saveState();
-      renderItems(document.querySelector('.search').value);
+      if (firebaseReady) {
+        const u = {};
+        items.forEach(i => { u[i.id] = true; });
+        selectionsRef.update(u);
+      }
+      renderItems(currentFilter());
     }
 
     function deselectAll() {
       items.forEach(i => state[i.id] = false);
       saveState();
-      renderItems(document.querySelector('.search').value);
+      if (firebaseReady) {
+        const u = {};
+        items.forEach(i => { u[i.id] = false; });
+        selectionsRef.update(u);
+      }
+      renderItems(currentFilter());
     }
 
     function updateSummary() {
@@ -266,106 +402,57 @@
       `;
     }
 
-    // --- Actions ---
-    function saveSelections() {
-      saveState();
-      showToast('Selections saved! Use "Share Link" to sync with another device.');
-    }
-
     function shareLink() {
       saveState();
-      const url = window.location.href;
-      navigator.clipboard.writeText(url).then(() => {
+      navigator.clipboard.writeText(window.location.href).then(() => {
         showToast('Link copied! Share it to sync selections.');
       }).catch(() => {
-        prompt('Copy this link to share selections:', url);
+        prompt('Copy this link to share selections:', window.location.href);
       });
     }
 
-    function showSkipList() {
-      const section = document.getElementById('outputSection');
-      const output = document.getElementById('skipOutput');
-      const toSkip = items.filter(i => !state[i.id]);
-      if (toSkip.length === 0) {
-        output.textContent = 'No items to skip - all items are selected for delivery.';
+    function sendSelections() {
+      const kept = items.filter(i => state[i.id]).map(i => ({ id: i.id, name: i.name }));
+      const skipped = items.filter(i => !state[i.id]).map(i => ({ id: i.id, name: i.name }));
+      const payload = {
+        selections: Object.assign({}, state),
+        altPreferences: Object.assign({}, altPreferences),
+        kept: kept,
+        skipped: skipped,
+        timestamp: Date.now(),
+        status: 'pending'
+      };
+
+      if (firebaseReady) {
+        sendQueueRef.set(payload).then(() => {
+          showToast('Sent! Claude Code will process your selections.');
+        }).catch(err => {
+          showToast('Error sending: ' + err.message);
+        });
       } else {
-        output.textContent = toSkip.map((item, i) => `${i + 1}. ${item.name}`).join('\n');
+        // Fallback: copy JSON to clipboard
+        navigator.clipboard.writeText(JSON.stringify(payload, null, 2)).then(() => {
+          showToast('Copied to clipboard (Firebase offline). Paste into Claude Code.');
+        }).catch(() => {
+          console.log('Send payload:', payload);
+          showToast('Logged to console. Check DevTools.');
+        });
       }
-      document.getElementById('optimizeSection').style.display = 'none';
-      section.style.display = 'block';
-      section.scrollIntoView({ behavior: 'smooth' });
     }
 
-    function optimizePrices() {
-      const selected = items.filter(i => state[i.id] && i.price && !i.note);
-      const out = document.getElementById('optimizeOutput');
-
-      // Build checked vs unchecked lists
-      const checked = selected.filter(i => priceData[i.id]);
-      const unchecked = selected.filter(i => !priceData[i.id]);
-
-      let totalSnsSavings = 0;
-      let totalOneTime = 0;
-
-      let html = '<table class="opt-table"><tr><th>Item</th><th>S&S</th><th>One-Time</th><th>You Save</th><th>Checked</th></tr>';
-
-      checked.forEach(item => {
-        const pd = priceData[item.id];
-        const unitSave = (pd.oneTime - pd.sns).toFixed(2);
-        const lineSave = (unitSave * item.qty).toFixed(2);
-        totalSnsSavings += parseFloat(lineSave);
-        totalOneTime += pd.oneTime * item.qty;
-        const noteHtml = pd.note ? ` <span style="color:#e65100;font-size:0.75rem">${pd.note}</span>` : '';
-        html += `<tr class="saving">
-          <td>${item.name}${item.qty > 1 ? ' &times;' + item.qty : ''}${noteHtml}</td>
-          <td>$${pd.sns.toFixed(2)}</td>
-          <td>$${pd.oneTime.toFixed(2)}</td>
-          <td style="color:#1b5e20;font-weight:600">$${lineSave} (${pd.pct}%)</td>
-          <td>${pd.checked}</td>
-        </tr>`;
-      });
-
-      unchecked.forEach(item => {
-        html += `<tr class="nodata">
-          <td>${item.name}${item.qty > 1 ? ' &times;' + item.qty : ''}</td>
-          <td>${item.price}</td>
-          <td>?</td>
-          <td>Not checked</td>
-          <td>-</td>
-        </tr>`;
-      });
-
-      html += '</table>';
-
-      html += `<div class="opt-summary">
-        <strong>${checked.length}</strong> of ${selected.length} items price-checked.
-        S&S is saving you at least <strong>$${totalSnsSavings.toFixed(2)}</strong> per delivery vs one-time purchases on checked items.
-        ${unchecked.length > 0 ? `<br><strong>${unchecked.length}</strong> items still need price checking (highlighted yellow).` : ''}
-      </div>`;
-
-      html += `<button class="opt-copy" onclick="copyForPriceCheck()">Copy unchecked items for price check</button>`;
-
-      out.innerHTML = html;
-      document.getElementById('outputSection').style.display = 'none';
-      document.getElementById('optimizeSection').style.display = 'block';
-      document.getElementById('optimizeSection').scrollIntoView({ behavior: 'smooth' });
+    function toggleAlts(id) {
+      const el = document.getElementById(id);
+      if (el) el.classList.toggle('open');
     }
 
-    function copyForPriceCheck() {
-      const selected = items.filter(i => state[i.id] && i.price && !i.note && !priceData[i.id]);
-      if (selected.length === 0) {
-        showToast('All selected items have been price-checked!');
-        return;
+    function switchAlt(itemId, altName) {
+      if (altPreferences[itemId] === altName) {
+        delete altPreferences[itemId];
+      } else {
+        altPreferences[itemId] = altName;
       }
-      let text = 'Please price-check these Amazon Subscribe & Save items (compare S&S vs one-time price, look for coupons):\n\n';
-      selected.forEach((item, i) => {
-        text += `${i + 1}. ${item.name} - S&S: ${item.price}${item.qty > 1 ? ' x' + item.qty : ''}, every ${item.freq}\n`;
-      });
-      navigator.clipboard.writeText(text).then(() => {
-        showToast(`${selected.length} items copied! Paste into Claude Code.`);
-      }).catch(() => {
-        prompt('Copy this text:', text);
-      });
+      localStorage.setItem('sns-alt-prefs', JSON.stringify(altPreferences));
+      renderItems(currentFilter());
     }
 
     function filterItems(val) {
@@ -379,7 +466,8 @@
       setTimeout(() => t.classList.remove('show'), 2500);
     }
 
-    // Initial render
+    // ========== Init ==========
+    initFirebase();
     renderItems();
   </script>
 </body>
