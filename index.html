@@ -247,6 +247,17 @@
             renderItems(currentFilter());
           });
 
+          // Load item ASINs for product links
+          db.ref('itemConfig').on('value', snapshot => {
+            const data = snapshot.val();
+            if (!data) return;
+            itemAsins = {};
+            for (const [id, config] of Object.entries(data)) {
+              if (config.asin) itemAsins[id] = config.asin;
+            }
+            renderItems(currentFilter());
+          });
+
           // Push current state to Firebase on first connect
           const updates = {};
           items.forEach(item => { updates[item.id] = !!state[item.id]; });
@@ -310,6 +321,7 @@
     let altPreferences = JSON.parse(localStorage.getItem('sns-alt-prefs') || '{}');
     let cancelQueue = JSON.parse(localStorage.getItem('sns-cancel-queue') || '{}');
     let priceData = {};
+    let itemAsins = {};
 
     window.addEventListener('hashchange', () => {
       state = loadState();
@@ -373,7 +385,7 @@
             altHtml += `
               <div class="alt-item">
                 <div class="alt-info">
-                  <div class="alt-name">${alt.name}${recBadge}</div>
+                  <div class="alt-name">${alt.asin ? '<a href="https://www.amazon.com/dp/' + alt.asin + '" target="_blank" style="color:inherit;text-decoration:none">' + alt.name + '</a>' : alt.name}${recBadge}</div>
                   <div class="alt-meta">${metaParts.join(' &middot; ')}</div>
                   ${alt.savings ? '<div class="' + savingsClass + '">' + alt.savings + '</div>' : ''}
                 </div>
@@ -395,7 +407,7 @@
           <span class="item-num">${idx}</span>
           <input type="checkbox" ${checked ? 'checked' : ''} onchange="toggle(${item.id}, this.checked)" id="cb-${item.id}">
           <div class="item-details">
-            <div class="item-name">${item.name}${prefHtml}${isCancelled ? '<span class="cancel-label">Pending cancellation</span>' : ''}</div>
+            <div class="item-name">${itemAsins[item.id] ? '<a href="https://www.amazon.com/dp/' + itemAsins[item.id] + '" target="_blank" style="color:inherit">' + item.name + '</a>' : item.name}${prefHtml}${isCancelled ? '<span class="cancel-label">Pending cancellation</span>' : ''}</div>
             <div class="item-meta">${item.freq ? 'Every ' + item.freq : ''}${item.qty > 1 ? ' &middot; Qty: ' + item.qty : ''} ${noteHtml}${badgeHtml}</div>
             ${altHtml}
           </div>
