@@ -79,7 +79,9 @@ Set security rules:
     "sendQueue": { ".read": "auth != null", ".write": "auth != null" },
     "cancelQueue": { ".read": "auth != null", ".write": "auth != null" },
     "priceData": { ".read": "auth != null", ".write": "auth != null" },
-    "itemConfig": { ".read": "auth != null", ".write": "auth != null" }
+    "itemConfig": { ".read": "auth != null", ".write": "auth != null" },
+    "orderHistory": { ".read": "auth != null", ".write": "auth != null" },
+    "rawOrders": { ".read": "auth != null", ".write": "auth != null" }
   }
 }
 ```
@@ -165,14 +167,59 @@ priceData/{itemId}: {
 
 ---
 
-## Frequency Optimization (Future)
+## Order History Scraper
 
-Planned workflow:
-1. Scrape Amazon order history via Playwright
-2. Calculate actual consumption interval for each S&S item
-3. Compare actual vs. current frequency
-4. Generate recommendations report
-5. Execute frequency changes on Amazon after approval
+An automated Playwright scraper (`history-scraper.mjs`) that analyzes your Amazon order history to identify deletion candidates and frequency mismatches.
+
+### What it does
+
+1. Logs into Amazon (uses persistent browser profile from the price scraper)
+2. Scrapes order history going back 12 months (configurable)
+3. Matches orders to S&S items by ASIN and fuzzy name matching
+4. Calculates actual consumption intervals vs. subscription frequencies
+5. Identifies deletion candidates:
+   - Items arriving faster than you use them (interval > 1.5x subscription frequency)
+   - Items not ordered in 3x the subscription period
+6. Writes results to Firebase `orderHistory/` node
+7. Website displays "Deletion Candidates" section with reasons and stats
+
+### Setup
+
+Same dependencies as the price scraper (Playwright + firebase-admin).
+
+First run requires manual Amazon login:
+```bash
+node history-scraper.mjs --login
+```
+This opens a visible browser — log in manually. Cookies are saved in `.browser-profile/` for future headless runs.
+
+### Usage
+
+```bash
+node history-scraper.mjs                # scrape past 12 months
+node history-scraper.mjs --dry-run      # test without writing to Firebase
+node history-scraper.mjs --months 6     # only go back 6 months
+node history-scraper.mjs --login        # open visible browser for manual login
+```
+
+### Firebase data structure
+
+```
+orderHistory/{itemId}: {
+  itemName: "Presto! Toilet Paper",
+  subscribedFreq: "1 month",
+  subscribedFreqDays: 30,
+  orders: [{ date: "2026-01-15", price: "$24.64", qty: 3, orderId: "..." }],
+  orderCount: 10,
+  avgIntervalDays: 32,
+  lastOrdered: "2026-02-01",
+  daysSinceLast: 26,
+  totalSpent: 245.60,
+  deletionCandidate: false,
+  deletionReason: null,
+  lastChecked: "2026-02-27T..."
+}
+```
 
 ---
 
@@ -251,4 +298,5 @@ Management console showed $48.81 but the product page lists $45.01 for S&S. Save
 - **Sync:** Firebase Realtime Database + Anonymous Auth (optional, falls back to localStorage)
 - **Automation:** Claude Code with Playwright MCP server (headless Chromium)
 - **Price scraper:** Node.js + Playwright, runs weekly via Task Scheduler, writes to Firebase
+- **History scraper:** Node.js + Playwright, analyzes Amazon order history for deletion candidates
 - **Data:** localStorage + URL hash for UI state; Firebase for multi-browser sync + price data
