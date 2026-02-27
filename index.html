@@ -646,18 +646,27 @@
         }
       });
 
-      // Potential savings from recommendations
+      // Potential savings from recommendations (uses same logic as recommendation engine)
       let potentialSavings = 0;
       items.forEach(item => {
         const allAlts = getAllAlternatives(item);
-        const bestAlt = findBestValue(allAlts, item);
-        if (bestAlt) {
-          const currentPrice = parseFloat(item.price.replace('$', ''));
-          if (bestAlt.priceNum && currentPrice && bestAlt.priceNum < currentPrice) {
-            const freqMonths = parseFreqMonths(item.freq);
-            if (freqMonths !== Infinity) {
-              potentialSavings += (currentPrice - bestAlt.priceNum) * item.qty * (12 / freqMonths);
+        const rec = buildRecommendation(item, allAlts);
+        if (rec && rec.action !== 'keep') {
+          const pd = priceData[item.id];
+          const currentUP = pd?.computedUnitPriceNum || null;
+          const currentUnit = pd?.computedUnit || null;
+          const currentPrice = parseFloat(item.price.replace('$', '')) || null;
+          const freqMonths = parseFreqMonths(item.freq);
+          if (freqMonths === Infinity) return;
+
+          if (rec.alt.comparableUnitPrice && currentUP && currentUnit) {
+            const unitDiff = currentUP - rec.alt.comparableUnitPrice;
+            if (unitDiff > 0) {
+              const pctSaving = unitDiff / currentUP;
+              potentialSavings += pctSaving * (currentPrice || 0) * item.qty * (12 / freqMonths);
             }
+          } else if (!currentUnit && rec.alt.priceNum && currentPrice && rec.alt.priceNum < currentPrice) {
+            potentialSavings += (currentPrice - rec.alt.priceNum) * item.qty * (12 / freqMonths);
           }
         }
       });
@@ -827,7 +836,7 @@
       const currentComparableUnitPrice = pd?.computedUnitPriceNum || null;
       const currentPrice = parseFloat(currentItem.price.replace('$', '')) || null;
 
-      // Strategy 1: Compare by unit price if we have same-unit data
+      // Strategy 1: Compare by unit price (same unit only)
       const sameUnitAlts = alts.filter(a => a.comparableUnitPrice && a.comparableUnit === currentUnit);
       if (sameUnitAlts.length > 0 && currentComparableUnitPrice) {
         let best = null;
@@ -838,11 +847,15 @@
             best = a;
           }
         }
-        if (best) return best;
-        return null; // current item is best
+        // If current item has a computed unit, ONLY use unit-price comparison.
+        // Never fall back to total price — different quantities make it meaningless.
+        return best; // null = current item is best per unit
       }
 
-      // Strategy 2: Fall back to total price comparison
+      // Strategy 2: Total price comparison — ONLY when no unit data exists at all.
+      // If current item has a computed unit but no alts matched, we can't compare fairly.
+      if (currentUnit) return null; // can't compare: we know the unit but no alt matches
+
       if (!currentPrice) return null;
       let best = null;
       let bestPrice = currentPrice;
@@ -894,16 +907,32 @@
           unitSavings = currentUP - alt.comparableUnitPrice;
         }
 
-        // Compute annual savings
-        const annual = computeAnnualSavings(currentPrice, alt.priceNum, item.qty, freqMonths);
+        // Compute annual savings — use unit-price-based estimate when available
+        let annual = null;
+        if (unitSavings && unitSavings > 0 && currentUP > 0 && currentPrice && freqMonths !== Infinity) {
+          // Annual savings = (unit saving / current unit price) * current total price * orders/year
+          const pctSaving = unitSavings / currentUP;
+          annual = pctSaving * currentPrice * item.qty * (12 / freqMonths);
+        } else if (!currentUnit) {
+          // No unit data — total price comparison is valid (same product, different sellers)
+          annual = computeAnnualSavings(currentPrice, alt.priceNum, item.qty, freqMonths);
+        }
 
         // Skip if store isn't practical or savings too small
         if (!compatible) continue;
         if (annual !== null && annual < minSavings) continue;
 
-        // Must actually be cheaper (by unit price or total price)
-        const isCheaper = (unitSavings && unitSavings > 0.005) ||
-                          (alt.priceNum && currentPrice && alt.priceNum < currentPrice);
+        // Must actually be cheaper
+        // If current item has a computed unit, ONLY consider unit-price savings.
+        // Total price is meaningless when quantities differ (e.g., 12-pack vs 24-pack).
+        let isCheaper = false;
+        if (currentUnit) {
+          // Unit-price comparison only
+          isCheaper = unitSavings && unitSavings > 0.005;
+        } else {
+          // No unit data — fall back to total price
+          isCheaper = (alt.priceNum && currentPrice && alt.priceNum < currentPrice);
+        }
         if (!isCheaper) continue;
 
         candidates.push({
@@ -934,7 +963,8 @@
       let savingsText = '';
       if (best.unitSavings && best.unitSavings > 0.005) {
         savingsText = `$${best.unitSavings.toFixed(2)}/${bestAlt.comparableUnit} cheaper`;
-      } else if (bestAlt.priceNum && currentPrice) {
+      } else if (!currentUnit && bestAlt.priceNum && currentPrice && currentPrice > bestAlt.priceNum) {
+        // Only show total-price savings when we have no unit data (same product comparison)
         savingsText = `$${(currentPrice - bestAlt.priceNum).toFixed(2)} less per order`;
       }
       if (best.annual && best.annual > 1) {
@@ -1222,7 +1252,8 @@
             if (bestVal.comparableUnitPrice && pd?.computedUnitPriceNum) {
               const diff = pd.computedUnitPriceNum - bestVal.comparableUnitPrice;
               if (diff > 0) saveSummary = `, saves $${diff.toFixed(2)}/${bestVal.comparableUnit}`;
-            } else {
+            } else if (!pd?.computedUnit) {
+              // Only show total-price savings when no unit data (same product, different sellers)
               const currentPrice = parseFloat(item.price.replace('$', ''));
               const saving = currentPrice ? (currentPrice - (bestVal.priceNum || 0)) : 0;
               if (saving > 0) saveSummary = `, saves $${saving.toFixed(2)}/order`;
