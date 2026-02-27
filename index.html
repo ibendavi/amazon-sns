@@ -26,8 +26,6 @@
     .controls button:hover { background: #e8e8e8; }
     .controls button.primary { background: #ff9900; color: #fff; border-color: #e88a00; font-weight: 600; }
     .controls button.primary:hover { background: #e88a00; }
-    .controls button.share { background: #fff; color: #146eb4; border-color: #146eb4; }
-    .controls button.share:hover { background: #e8f0fe; }
     .summary { background: #fff; border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); font-size: 0.9rem; }
     .summary span { font-weight: 600; }
     .item-list { list-style: none; }
@@ -80,8 +78,7 @@
   <div class="controls">
     <button onclick="selectAll()">Select All</button>
     <button onclick="deselectAll()">Deselect All</button>
-    <button class="share" onclick="shareLink()">Share Link</button>
-    <button class="primary" onclick="sendSelections()">Send</button>
+<button class="primary" onclick="sendSelections()">Send</button>
     <input type="text" class="search" placeholder="Filter items..." oninput="filterItems(this.value)">
   </div>
 
@@ -446,15 +443,6 @@
         <span>${skipped.length}</span> to skip &mdash;
         Estimated total: <span>$${total.toFixed(2)}</span>
       `;
-    }
-
-    function shareLink() {
-      saveState();
-      navigator.clipboard.writeText(window.location.href).then(() => {
-        showToast('Link copied! Share it to sync selections.');
-      }).catch(() => {
-        prompt('Copy this link to share selections:', window.location.href);
-      });
     }
 
     function sendSelections() {
