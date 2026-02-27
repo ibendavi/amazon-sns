@@ -136,20 +136,23 @@ async function extractAsinFromSearch(page, itemName) {
   await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
   await randomDelay(2000, 4000);
 
-  // Find first organic result (not sponsored)
-  const result = await page.$('[data-component-type="s-search-result"]:not([data-component-type*="sp-"]) a.a-link-normal[href*="/dp/"]');
-  if (!result) {
-    // Fall back to any result
-    const anyResult = await page.$('a.a-link-normal[href*="/dp/"]');
-    if (!anyResult) return null;
-    const href = await anyResult.getAttribute('href');
-    const match = href.match(/\/dp\/([A-Z0-9]{10})/);
-    return match ? match[1] : null;
-  }
-
-  const href = await result.getAttribute('href');
-  const match = href.match(/\/dp\/([A-Z0-9]{10})/);
-  return match ? match[1] : null;
+  // Use data-asin attribute on search result divs (most reliable)
+  const asin = await page.evaluate(() => {
+    const results = document.querySelectorAll('[data-component-type="s-search-result"]');
+    for (const r of results) {
+      // Skip sponsored
+      if (r.querySelector('.s-label-popover-default')) continue;
+      const asin = r.getAttribute('data-asin');
+      if (asin && asin.length === 10) return asin;
+    }
+    // Fallback: any result with data-asin
+    for (const r of results) {
+      const asin = r.getAttribute('data-asin');
+      if (asin && asin.length === 10) return asin;
+    }
+    return null;
+  });
+  return asin;
 }
 
 async function scrapeProductPage(page, asin) {
@@ -257,60 +260,103 @@ async function scrapeProductPage(page, asin) {
   return result;
 }
 
-async function scrapeAlternatives(page, itemName, maxAlts = 3) {
-  const alternatives = [];
+async function scrapeAlternatives(page, itemName, currentAsin, maxAlts = 3) {
+  // Strategy 1: Check Amazon's "Compare with similar items" on the product page
+  // (we're still on the product page from scrapeProductPage)
+  let alternatives = await page.evaluate(({ currentAsin, maxAlts }) => {
+    const alts = [];
 
-  // Search for alternatives with a more generic query
-  const genericName = itemName
-    .replace(/\(.*?\)/g, '')  // remove parentheticals
-    .replace(/\d+\s*(oz|lb|ct|count|pack|rolls?|cans?|tablets?|bars?)\b/gi, '')
+    // Look for comparison table / similar items widget
+    const compRows = document.querySelectorAll('#HLCXComparisonTable .a-cardui, [data-component-type="s-impression-counter"] .a-carousel-card, .similarities-widget .a-carousel-card');
+    for (const row of compRows) {
+      if (alts.length >= maxAlts) break;
+      const nameEl = row.querySelector('.a-link-normal .a-truncate-full, .a-link-normal .a-text-normal, a[title]');
+      const priceEl = row.querySelector('.a-price .a-offscreen');
+      const linkEl = row.querySelector('a[href*="/dp/"]');
+      if (!nameEl || !priceEl || !linkEl) continue;
+
+      const href = linkEl.getAttribute('href') || '';
+      const asinMatch = href.match(/\/dp\/([A-Z0-9]{10})/);
+      if (!asinMatch || asinMatch[1] === currentAsin) continue;
+
+      const priceMatch = (priceEl.textContent || '').replace(/,/g, '').match(/\$([\d]+\.[\d]{2})/);
+      if (!priceMatch) continue;
+
+      alts.push({
+        name: (nameEl.getAttribute('title') || nameEl.textContent || '').trim().slice(0, 120),
+        price: '$' + priceMatch[1],
+        unitPrice: '',
+        asin: asinMatch[1],
+      });
+    }
+    return alts;
+  }, { currentAsin, maxAlts });
+
+  if (alternatives.length >= maxAlts) return alternatives;
+
+  // Strategy 2: Search Amazon for similar products
+  const searchQuery = itemName
+    .replace(/\(.*?\)/g, '')  // remove parentheticals like (24 rolls)
+    .replace(/[!™®]/g, '')
     .trim();
 
-  if (!genericName || genericName.length < 5) return alternatives;
+  if (!searchQuery || searchQuery.length < 3) return alternatives;
 
-  const searchUrl = `https://www.amazon.com/s?k=${encodeURIComponent(genericName)}&s=review-rank`;
-  log(`  Searching alternatives: ${genericName}`);
+  const searchUrl = `https://www.amazon.com/s?k=${encodeURIComponent(searchQuery)}`;
+  log(`  Searching alternatives: ${searchQuery}`);
   await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
   await randomDelay(2000, 4000);
 
-  const results = await page.$$('[data-component-type="s-search-result"]');
+  const existingCount = alternatives.length;
+  const searchAlts = await page.evaluate(({ currentAsin, maxAlts, existingCount }) => {
+    const alts = [];
+    const results = document.querySelectorAll('[data-component-type="s-search-result"]');
 
-  for (const result of results.slice(0, 8)) {
-    if (alternatives.length >= maxAlts) break;
+    for (const result of results) {
+      if (alts.length + existingCount >= maxAlts) break;
 
-    try {
-      const nameEl = await result.$('h2 a span, .a-text-normal');
-      const priceEl = await result.$('.a-price .a-offscreen');
-      const linkEl = await result.$('h2 a');
+      // Skip sponsored results
+      if (result.querySelector('.s-label-popover-default, [data-component-type="sp-sponsored-result"]')) continue;
 
-      if (!nameEl || !priceEl || !linkEl) continue;
+      // Use data-asin attribute (most reliable)
+      const asin = result.getAttribute('data-asin');
+      if (!asin || asin === currentAsin) continue;
 
-      const name = (await nameEl.textContent()).trim();
-      const price = parsePrice(await priceEl.textContent());
-      const href = await linkEl.getAttribute('href');
-      const asinMatch = href ? href.match(/\/dp\/([A-Z0-9]{10})/) : null;
+      // Product name from h2 span
+      const nameEl = result.querySelector('h2 span');
+      if (!nameEl) continue;
 
-      if (!price || !asinMatch) continue;
+      // Get the whole-item price
+      const priceWhole = result.querySelector('.a-price:not(.a-text-price) .a-price-whole');
+      const priceFraction = result.querySelector('.a-price:not(.a-text-price) .a-price-fraction');
+      if (!priceWhole) continue;
 
-      // Skip if it looks like the same product
-      if (name.length > 200) continue;
+      const whole = (priceWhole.textContent || '').replace(/[^0-9]/g, '');
+      const frac = (priceFraction ? priceFraction.textContent : '00').replace(/[^0-9]/g, '');
+      const price = parseFloat(whole + '.' + frac);
+      if (!price || price < 1) continue;
 
-      // Try to extract unit price
-      const unitPriceEl = await result.$('.a-price + .a-size-base, .a-row .a-size-base.a-color-secondary');
-      const unitPrice = unitPriceEl ? (await unitPriceEl.textContent()).trim() : '';
+      // Unit price text
+      const unitPriceEl = result.querySelector('.a-size-base.a-color-secondary');
+      let unitPrice = '';
+      if (unitPriceEl) {
+        const upt = unitPriceEl.textContent || '';
+        const upm = upt.match(/\(\$[\d.]+\/[^)]+\)/);
+        if (upm) unitPrice = upm[0];
+      }
 
-      alternatives.push({
-        name: name.slice(0, 120),
-        price: `$${price.toFixed(2)}`,
-        unitPrice: unitPrice || '',
-        asin: asinMatch[1],
+      alts.push({
+        name: (nameEl.textContent || '').trim().slice(0, 120),
+        price: '$' + price.toFixed(2),
+        unitPrice,
+        asin,
       });
-    } catch (e) {
-      // Skip problematic results
     }
-  }
+    return alts;
+  }, { currentAsin, maxAlts, existingCount });
 
-  return alternatives;
+  alternatives = alternatives.concat(searchAlts);
+  return alternatives.slice(0, maxAlts);
 }
 
 // ========== Main ==========
@@ -383,7 +429,7 @@ async function main() {
 
       // Scrape alternatives
       await randomDelay(3000, 8000);
-      const alternatives = await scrapeAlternatives(page, item.name);
+      const alternatives = await scrapeAlternatives(page, item.name, asin);
       log(`  Found ${alternatives.length} alternatives`);
 
       // Build data object
