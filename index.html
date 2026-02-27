@@ -305,6 +305,27 @@
       pet: 'Pet', food: 'Food & Beverage', household: 'Household', personal: 'Personal Care'
     };
 
+    // ========== Store Shopping Habits ==========
+    // How often you visit each store (in days). Used to determine if a competitor
+    // recommendation is practical — no point suggesting Target if you rarely go.
+    // Amazon S&S is auto-delivered so it's always "compatible".
+    const STORE_HABITS = {
+      amazon:  { visitDays: 0,   label: 'Auto-delivered',    practical: true },
+      costco:  { visitDays: 7,   label: 'Shop weekly',       practical: true },
+      target:  { visitDays: 30,  label: 'Shop occasionally', practical: true },
+      walmart: { visitDays: 30,  label: 'Shop occasionally', practical: true },
+      sams:    { visitDays: null, label: 'No membership',    practical: false },
+    };
+
+    // Minimum annual savings to recommend switching away from S&S auto-delivery
+    const MIN_SAVINGS_TO_SWITCH = {
+      amazon: 0,     // any savings from an Amazon alt is worth it (same convenience)
+      costco: 5,     // $5/yr min — you're there weekly anyway
+      target: 15,    // $15/yr min — need to remember to buy
+      walmart: 15,   // same
+      sams: Infinity, // never recommend (no membership)
+    };
+
     // ========== Helpers ==========
     function parseFreqMonths(freq) {
       if (!freq) return Infinity;
@@ -835,57 +856,108 @@
     }
 
     // ========== Recommendation Engine ==========
+    function computeAnnualSavings(currentPrice, altPrice, qty, freqMonths) {
+      if (!altPrice || !currentPrice || freqMonths === Infinity) return null;
+      return (currentPrice - altPrice) * qty * (12 / freqMonths);
+    }
+
+    function isStoreCompatible(store, itemFreqDays) {
+      const habit = STORE_HABITS[store];
+      if (!habit || !habit.practical) return false;
+      if (store === 'amazon') return true; // auto-delivered, always compatible
+      if (habit.visitDays === null) return false;
+      // You visit often enough to buy this item on your regular trips
+      return habit.visitDays <= (itemFreqDays || 30);
+    }
+
     function buildRecommendation(item, allAlts) {
       const pd = priceData[item.id];
       const currentPrice = parseFloat(item.price.replace('$', '')) || null;
       if (!currentPrice && !pd?.computedUnitPriceNum) return null;
 
-      const bestVal = findBestValue(allAlts, item);
       const currentUnit = pd?.computedUnit || null;
       const currentUP = pd?.computedUnitPriceNum || null;
+      const freqMonths = parseFreqMonths(item.freq);
+      const freqDays = parseFreqDays(item.freq);
 
-      if (!bestVal) {
-        // Current item is cheapest — recommend keep
+      // Score each alternative considering price AND store practicality
+      const candidates = [];
+      for (const alt of allAlts) {
+        const store = alt.store;
+        const habit = STORE_HABITS[store] || STORE_HABITS.amazon;
+        const compatible = isStoreCompatible(store, freqDays);
+        const minSavings = MIN_SAVINGS_TO_SWITCH[store] ?? 15;
+
+        // Compute per-unit savings if same unit
+        let unitSavings = null;
+        if (alt.comparableUnitPrice && currentUP && alt.comparableUnit === currentUnit) {
+          unitSavings = currentUP - alt.comparableUnitPrice;
+        }
+
+        // Compute annual savings
+        const annual = computeAnnualSavings(currentPrice, alt.priceNum, item.qty, freqMonths);
+
+        // Skip if store isn't practical or savings too small
+        if (!compatible) continue;
+        if (annual !== null && annual < minSavings) continue;
+
+        // Must actually be cheaper (by unit price or total price)
+        const isCheaper = (unitSavings && unitSavings > 0.005) ||
+                          (alt.priceNum && currentPrice && alt.priceNum < currentPrice);
+        if (!isCheaper) continue;
+
+        candidates.push({
+          alt,
+          store,
+          unitSavings,
+          annual,
+          compatible,
+          // Prefer: (1) same-unit cheaper, (2) higher annual savings
+          score: (unitSavings && unitSavings > 0 ? unitSavings * 100 : 0) + (annual || 0),
+        });
+      }
+
+      if (candidates.length === 0) {
         return { action: 'keep', text: 'Your current item is the best value.', savings: null };
       }
 
-      // Compute savings text
+      // Pick the best candidate
+      candidates.sort((a, b) => b.score - a.score);
+      const best = candidates[0];
+      const bestAlt = best.alt;
+      const storeName = best.store.charAt(0).toUpperCase() + best.store.slice(1);
+      const isAmazon = best.store === 'amazon';
+      const nameShort = bestAlt.name.length > 60 ? bestAlt.name.slice(0, 57) + '...' : bestAlt.name;
+      const storeHabit = STORE_HABITS[best.store];
+
+      // Build savings text
       let savingsText = '';
-      let annualSavings = null;
-      const freqMonths = parseFreqMonths(item.freq);
-
-      if (bestVal.comparableUnitPrice && currentUP) {
-        const diff = currentUP - bestVal.comparableUnitPrice;
-        savingsText = `$${diff.toFixed(2)}/${bestVal.comparableUnit} cheaper`;
-      } else if (bestVal.priceNum && currentPrice) {
-        const diff = currentPrice - bestVal.priceNum;
-        if (diff > 0) savingsText = `$${diff.toFixed(2)} less per order`;
+      if (best.unitSavings && best.unitSavings > 0.005) {
+        savingsText = `$${best.unitSavings.toFixed(2)}/${bestAlt.comparableUnit} cheaper`;
+      } else if (bestAlt.priceNum && currentPrice) {
+        savingsText = `$${(currentPrice - bestAlt.priceNum).toFixed(2)} less per order`;
       }
-
-      if (bestVal.priceNum && currentPrice && freqMonths !== Infinity) {
-        annualSavings = (currentPrice - bestVal.priceNum) * item.qty * (12 / freqMonths);
-        if (annualSavings > 1) savingsText += ` (~$${annualSavings.toFixed(0)}/yr)`;
+      if (best.annual && best.annual > 1) {
+        savingsText += ` (~$${best.annual.toFixed(0)}/yr)`;
       }
-
-      const storeName = bestVal.store.charAt(0).toUpperCase() + bestVal.store.slice(1);
-      const isAmazon = bestVal.store === 'amazon';
-      const nameShort = bestVal.name.length > 60 ? bestVal.name.slice(0, 57) + '...' : bestVal.name;
 
       if (isAmazon) {
         return {
           action: 'switch',
           text: `Switch to ${nameShort}`,
           savings: savingsText,
-          alt: bestVal,
+          alt: bestAlt,
           itemId: item.id,
         };
       } else {
+        // Note store visit frequency for context
+        const habitNote = storeHabit ? ` \u2014 you shop there ${storeHabit.label.toLowerCase().replace('shop ', '')}` : '';
         return {
           action: 'buy',
           store: storeName,
           text: `Buy at ${storeName}: ${nameShort}`,
-          savings: savingsText,
-          alt: bestVal,
+          savings: savingsText + habitNote,
+          alt: bestAlt,
         };
       }
     }
