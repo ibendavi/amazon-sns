@@ -501,6 +501,27 @@ async function scrapeAlternatives(page, itemName, currentAsin, currentPrice, max
 
   alternatives = alternatives.concat(searchAlts).slice(0, maxAlts);
 
+  // Enrich alternatives with short names — fetch full product title
+  for (const alt of alternatives) {
+    if (alt.asin && alt.name.length < 50) {
+      try {
+        log(`    Enriching short name "${alt.name}" via ${alt.asin}...`);
+        await page.goto(`https://www.amazon.com/dp/${alt.asin}`, { waitUntil: 'domcontentloaded', timeout: 15000 });
+        await randomDelay(1500, 3000);
+        const fullTitle = await page.evaluate(() => {
+          const el = document.querySelector('#productTitle');
+          return el ? el.textContent.trim() : null;
+        });
+        if (fullTitle && fullTitle.length > alt.name.length) {
+          alt.name = fullTitle.slice(0, 150);
+          log(`    -> "${alt.name.slice(0, 80)}..."`);
+        }
+      } catch (e) {
+        log(`    Could not enrich name for ${alt.asin}: ${e.message}`);
+      }
+    }
+  }
+
   // Add savings vs current item and pick recommendation
   for (const alt of alternatives) {
     if (currentPrice && alt.priceNum) {
