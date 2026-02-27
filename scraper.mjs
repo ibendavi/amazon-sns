@@ -160,33 +160,87 @@ async function scrapeProductPage(page, asin) {
 
   const result = { snsPrice: null, oneTimePrice: null, savingsPct: null, coupons: [] };
 
-  // Try to get S&S price
-  const snsPriceEl = await page.$('#sns-base-price, #subscriptionPrice .a-offscreen, .sns-price-text .a-offscreen');
-  if (snsPriceEl) {
-    result.snsPrice = parsePrice(await snsPriceEl.textContent());
-  }
+  // Use page.evaluate to extract prices in-page where we can inspect context
+  const prices = await page.evaluate(() => {
+    const out = { sns: null, oneTime: null };
 
-  // Try the accordion/buybox S&S section
-  if (!result.snsPrice) {
-    const snsSection = await page.$('#snsAccordionRowMiddle .a-offscreen, #newAccordionRow_1 .a-offscreen');
-    if (snsSection) {
-      result.snsPrice = parsePrice(await snsSection.textContent());
+    // Helper: extract dollar amount >= $1 from text (skip unit prices like $0.75/count)
+    function extractPrice(text) {
+      if (!text) return null;
+      const m = text.replace(/,/g, '').match(/\$(\d+\.?\d*)/);
+      if (!m) return null;
+      const v = parseFloat(m[1]);
+      return v >= 1 ? v : null;
     }
-  }
 
-  // One-time purchase price
-  const oneTimePriceEl = await page.$('#oneTimeBuyPrice .a-offscreen, #price_inside_buybox, .a-price .a-offscreen');
-  if (oneTimePriceEl) {
-    result.oneTimePrice = parsePrice(await oneTimePriceEl.textContent());
-  }
+    // --- S&S price ---
+    // Method 1: The S&S accordion row price (most reliable)
+    const snsAccordion = document.querySelector('#snsAccordionRowMiddle .a-price .a-offscreen, #newAccordionRow_1 .a-price .a-offscreen');
+    if (snsAccordion) out.sns = extractPrice(snsAccordion.textContent);
 
-  // Fallback: main price block
-  if (!result.oneTimePrice) {
-    const mainPrice = await page.$('.a-price:not(.a-text-price) .a-offscreen');
-    if (mainPrice) {
-      result.oneTimePrice = parsePrice(await mainPrice.textContent());
+    // Method 2: S&S base price element
+    if (!out.sns) {
+      const snsBase = document.querySelector('#sns-base-price');
+      if (snsBase) out.sns = extractPrice(snsBase.textContent);
     }
-  }
+
+    // Method 3: Look for text containing "Subscribe" near a price
+    if (!out.sns) {
+      const snsSections = document.querySelectorAll('#subscriptionPrice .a-offscreen, .sns-price-text .a-offscreen');
+      for (const el of snsSections) {
+        const p = extractPrice(el.textContent);
+        if (p) { out.sns = p; break; }
+      }
+    }
+
+    // --- One-time price ---
+    // Method 1: Core price display (the main buy box price)
+    const corePrice = document.querySelector('#corePriceDisplay_desktop_feature_div .a-price .a-offscreen, #corePrice_feature_div .a-price .a-offscreen');
+    if (corePrice) out.oneTime = extractPrice(corePrice.textContent);
+
+    // Method 2: One-time buy price element
+    if (!out.oneTime) {
+      const otb = document.querySelector('#oneTimeBuyPrice .a-offscreen, #price_inside_buybox');
+      if (otb) out.oneTime = extractPrice(otb.textContent);
+    }
+
+    // Method 3: The one-time purchase accordion row
+    if (!out.oneTime) {
+      const otAccordion = document.querySelector('#newAccordionRow_0 .a-price .a-offscreen, #buyNew .a-price .a-offscreen');
+      if (otAccordion) out.oneTime = extractPrice(otAccordion.textContent);
+    }
+
+    // Method 4: Fallback — first .a-price that's not crossed out and >= $1
+    if (!out.oneTime) {
+      const allPrices = document.querySelectorAll('.a-price:not(.a-text-price) .a-offscreen');
+      for (const el of allPrices) {
+        const p = extractPrice(el.textContent);
+        if (p) { out.oneTime = p; break; }
+      }
+    }
+
+    // If we got a one-time price but no S&S, and the page has S&S info,
+    // the one-time price might actually be the S&S price shown in buy box
+    if (!out.sns && out.oneTime) {
+      const hasSns = document.querySelector('#sns-base-price, #snsAccordionRowMiddle, #subscriptionPrice, [data-feature-name="snsAccordion"]');
+      if (hasSns) {
+        // The displayed price is likely S&S; look for the list price as one-time
+        const listPrice = document.querySelector('.a-text-price .a-offscreen, #listPrice, .basisPrice .a-offscreen');
+        if (listPrice) {
+          const lp = extractPrice(listPrice.textContent);
+          if (lp && lp > out.oneTime) {
+            out.sns = out.oneTime;
+            out.oneTime = lp;
+          }
+        }
+      }
+    }
+
+    return out;
+  });
+
+  result.snsPrice = prices.sns;
+  result.oneTimePrice = prices.oneTime;
 
   // Calculate savings
   if (result.snsPrice && result.oneTimePrice && result.oneTimePrice > result.snsPrice) {
