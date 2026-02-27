@@ -1022,7 +1022,9 @@
               // Total price comparison (may be different sizes)
               const diff = currentPrice - alt.priceNum;
               if (Math.abs(diff) > 0.01) {
-                const note = alt.comparableUnit ? '' : ' (different size)';
+                // Only show "different size" if current item has unit data but alt doesn't match
+                const currentHasUnit = pd?.computedUnit;
+                const note = currentHasUnit && !alt.comparableUnit ? ' (different size)' : '';
                 if (diff > 0) savingsHtml = `<div class="alt-savings">$${diff.toFixed(2)} less${note}</div>`;
                 else savingsHtml = `<div class="alt-savings more-expensive">$${Math.abs(diff).toFixed(2)} more${note}</div>`;
               }
