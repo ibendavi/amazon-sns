@@ -77,8 +77,8 @@ const ITEMS = [
 
 const UNIT_MAPPINGS = {
   // Pattern: regex to match product name → { unit, extractCount: regex to extract count from name }
-  'toilet paper': { unit: 'roll', pattern: /(\d+)\s*(?:mega\s+)?rolls?/i },
-  'paper towels': { unit: 'roll', pattern: /(\d+)\s*(?:xl\s+|huge\s+)?rolls?/i },
+  'toilet paper': { unit: 'roll', pattern: /(\d+)\s*(?:\w+\s+)*rolls?/i },
+  'paper towels': { unit: 'roll', pattern: /(\d+)\s*(?:\w+\s+)*rolls?/i },
   'cat food.*cans': { unit: 'can', pattern: /(\d+)\s*cans?/i },
   'cat food.*lb': { unit: 'lb', pattern: /([\d.]+)\s*lbs?/i },
   'dog food.*lb': { unit: 'lb', pattern: /([\d.]+)\s*lbs?/i },

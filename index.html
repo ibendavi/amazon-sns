@@ -808,14 +808,20 @@
       if (comp) {
         for (const [store, data] of Object.entries(comp)) {
           if (!data || !data.price) continue;
-          const hasMatchingUnit = data.unit && data.unit === currentUnit;
+          // Prefer computed unit (same logic as Amazon) over store-provided unit
+          const compUnit = data.computedUnit || null;
+          const compUnitPrice = data.computedUnitPriceNum || null;
+          const hasMatchingUnit = compUnit && compUnit === currentUnit;
+          // Display: prefer computed, fall back to store-provided
+          const dispUnit = data.computedUnitPrice
+            || (data.unitPrice ? `$${data.unitPrice}/${data.unit || 'ea'}` : '');
           all.push({
             name: data.name,
             price: '$' + (typeof data.price === 'number' ? data.price.toFixed(2) : data.price),
             priceNum: typeof data.price === 'number' ? data.price : parseFloat(String(data.price).replace('$', '')),
-            displayUnitPrice: data.unitPrice ? `$${data.unitPrice}/${data.unit || 'ea'}` : '',
-            comparableUnitPrice: hasMatchingUnit ? data.unitPrice : null,
-            comparableUnit: hasMatchingUnit ? data.unit : null,
+            displayUnitPrice: dispUnit,
+            comparableUnitPrice: hasMatchingUnit ? compUnitPrice : null,
+            comparableUnit: hasMatchingUnit ? compUnit : null,
             url: data.url,
             image: data.image || '',
             store,

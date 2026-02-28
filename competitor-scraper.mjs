@@ -107,6 +107,81 @@ function parseUnitPrice(text) {
   return { unitPrice: null, unit: null };
 }
 
+// ========== Unit Price Computation (same as scraper.mjs) ==========
+
+const UNIT_MAPPINGS = {
+  'toilet paper': { unit: 'roll', pattern: /(\d+)\s*(?:\w+\s+)*rolls?/i },
+  'paper towels': { unit: 'roll', pattern: /(\d+)\s*(?:\w+\s+)*rolls?/i },
+  'cat food.*cans': { unit: 'can', pattern: /(\d+)\s*cans?/i },
+  'cat food.*lb': { unit: 'lb', pattern: /([\d.]+)\s*lbs?/i },
+  'dog food.*lb': { unit: 'lb', pattern: /([\d.]+)\s*lbs?/i },
+  'cat litter': { unit: 'lb', pattern: /(\d+)\s*lbs?/i },
+  'coffee': { unit: 'oz', pattern: /([\d.]+)\s*(?:lbs?|oz|kg)/i, multiplier: (m) => {
+    const val = parseFloat(m[1]);
+    if (m[0].toLowerCase().includes('lb')) return val * 16;
+    if (m[0].toLowerCase().includes('kg')) return val * 35.274;
+    return val;
+  }},
+  'almonds': { unit: 'oz', pattern: /(\d+)\s*oz/i },
+  'seeds': { unit: 'oz', pattern: /([\d.]+)\s*(?:lbs?|oz)/i, multiplier: (m) => m[0].includes('lb') ? parseFloat(m[1]) * 16 : parseFloat(m[1]) },
+  'batteries': { unit: 'battery', pattern: /(\d+)\s*(?:pack|count|ct)/i },
+  'tablets': { unit: 'tablet', pattern: /(\d+)\s*tablets?/i },
+  'softgels': { unit: 'softgel', pattern: /(\d+)\s*softgels?/i },
+  'bars': { unit: 'bar', pattern: /(\d+)\s*bars?/i },
+  'deodorant.*pack': { unit: 'stick', pattern: /(\d+)[- ]?pack/i },
+  'dryer sheets': { unit: 'sheet', pattern: /(\d+)\s*(?:ct|count|sheets?)/i },
+  'wipes.*pack': { unit: 'pack', pattern: /(\d+)[- ]?pack/i },
+  'toothpaste.*pack': { unit: 'tube', pattern: /(\d+)[- ]?pack/i },
+  'floss.*pack': { unit: 'pack', pattern: /(\d+)[- ]?pack/i },
+  'razor.*refills': { unit: 'cartridge', pattern: /(\d+)\s*(?:count|ct|refills?)/i },
+  'contact solution': { unit: 'oz', pattern: /([\d.]+)\s*oz/i },
+  'soap.*refill': { unit: 'refill', pattern: /(\d+)[- ]?pack/i },
+  'water filter': { unit: 'filter', pattern: /(\d+)\s*(?:pack|filters?)/i },
+  'tape.*rolls': { unit: 'roll', pattern: /(\d+)\s*rolls?/i },
+  'tahini': { unit: 'pack', pattern: /(\d+)\s*pack/i },
+  'plastic wrap': { unit: 'sq ft', pattern: /(\d+)\s*sq\s*ft/i },
+  'chocolate.*almonds': { unit: 'oz', pattern: /(\d+)\s*oz/i },
+  'cleanser.*oz': { unit: 'oz', pattern: /([\d.]+)\s*oz/i },
+  'body scrub': { unit: 'oz', pattern: /([\d.]+)\s*oz/i },
+  'hand cream': { unit: 'oz', pattern: /([\d.]+)\s*oz/i },
+  'cologne|edt|perfume': { unit: 'oz', pattern: /([\d.]+)\s*oz/i },
+  'shower.*count': { unit: 'tablet', pattern: /(\d+)\s*(?:count|ct)/i },
+  'soft.picks': { unit: 'pick', pattern: /(\d+)\s*(?:ct|count)/i },
+  'melatonin': { unit: 'tablet', pattern: /(\d+)\s*tablets?/i },
+};
+
+function computeUnitPrice(itemName, totalPrice) {
+  if (!totalPrice || totalPrice <= 0) return null;
+  const nameLower = itemName.toLowerCase();
+
+  for (const [keyword, mapping] of Object.entries(UNIT_MAPPINGS)) {
+    const keyRe = new RegExp(keyword, 'i');
+    if (!keyRe.test(nameLower)) continue;
+
+    const match = itemName.match(mapping.pattern);
+    if (!match) continue;
+
+    let count;
+    if (mapping.multiplier) {
+      count = mapping.multiplier(match);
+    } else {
+      count = parseFloat(match[1]);
+    }
+
+    if (!count || count <= 0) continue;
+
+    const unitPrice = totalPrice / count;
+    return {
+      unitPrice: Math.round(unitPrice * 100) / 100,
+      unit: mapping.unit,
+      count,
+      formatted: `$${unitPrice.toFixed(2)}/${mapping.unit}`,
+    };
+  }
+
+  return null;
+}
+
 // ========== Firebase ==========
 
 function initFirebaseAdmin() {
@@ -751,8 +826,18 @@ async function main() {
 
         if (result) {
           log(`  [${storeKey}] Found: ${result.name.slice(0, 60)}... @ $${result.price.toFixed(2)}`);
-          if (result.unitPrice) {
-            log(`  [${storeKey}] Unit price: $${result.unitPrice}/${result.unit || '?'}`);
+
+          // Compute unit price from the competitor product name
+          const computed = computeUnitPrice(result.name, result.price)
+            || computeUnitPrice(item.name, result.price); // fallback: use Amazon item name for unit category
+          if (computed) {
+            result.computedUnitPrice = computed.formatted;
+            result.computedUnitPriceNum = computed.unitPrice;
+            result.computedUnit = computed.unit;
+            result.computedUnitCount = computed.count;
+            log(`  [${storeKey}] Computed unit price: ${computed.formatted} (${computed.count} ${computed.unit}s)`);
+          } else if (result.unitPrice) {
+            log(`  [${storeKey}] Store unit price: $${result.unitPrice}/${result.unit || '?'}`);
           }
 
           if (!dryRun) {
