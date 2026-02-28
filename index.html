@@ -55,6 +55,7 @@
     .alt-list.open { display: block; }
     .alt-item { display: flex; align-items: center; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #eee; gap: 8px; }
     .alt-img { width: 40px; height: 40px; object-fit: contain; border-radius: 4px; flex-shrink: 0; background: #fff; }
+    .item-img { width: 50px; height: 50px; object-fit: contain; border-radius: 4px; flex-shrink: 0; background: #fff; margin-right: 8px; }
     .alt-item:last-child { border-bottom: none; }
     .alt-info { flex: 1; }
     .alt-name { font-weight: 500; }
@@ -1273,9 +1274,13 @@
         // Price display with unit price
         const priceDisplay = item.price + (computedUnit ? ` <span style="font-size:0.75rem;color:#777;font-weight:normal">${computedUnit}</span>` : '');
 
+        const itemImage = pd?.image || '';
+        const itemImgHtml = itemImage ? `<img class="item-img" src="${itemImage}" alt="" loading="lazy">` : '';
+
         li.innerHTML = `
           <span class="item-num">${idx}</span>
           <input type="checkbox" ${checked ? 'checked' : ''} onchange="toggle(${item.id}, this.checked)" id="cb-${item.id}">
+          ${itemImgHtml}
           <div class="item-details">
             <div class="item-name">${itemAsins[item.id] ? '<a href="https://www.amazon.com/dp/' + itemAsins[item.id] + '" target="_blank" style="color:inherit">' + item.name + '</a>' : item.name}${prefHtml}${isCancelled ? '<span class="cancel-label">Pending cancellation</span>' : ''}</div>
             <div class="item-meta">

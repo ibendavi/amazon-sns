@@ -280,7 +280,7 @@ async function scrapeProductPage(page, asin) {
   await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
   await randomDelay(2000, 5000);
 
-  const result = { snsPrice: null, oneTimePrice: null, savingsPct: null, unitPrice: '', coupons: [] };
+  const result = { snsPrice: null, oneTimePrice: null, savingsPct: null, unitPrice: '', coupons: [], image: '' };
 
   // Use page.evaluate to extract prices in-page where we can inspect context
   const prices = await page.evaluate(() => {
@@ -399,6 +399,16 @@ async function scrapeProductPage(page, asin) {
     const couponText = await couponEl.textContent();
     if (couponText.trim()) result.coupons.push(couponText.trim());
   }
+
+  // Extract product image
+  result.image = await page.evaluate(() => {
+    const img = document.querySelector('#landingImage, #imgBlkFront, #main-image, #ebooksImgBlkFront');
+    if (img) {
+      // Prefer data-old-hires (high-res) over src (which may be a placeholder)
+      return img.getAttribute('data-old-hires') || img.getAttribute('src') || '';
+    }
+    return '';
+  }) || '';
 
   return result;
 }
@@ -672,6 +682,7 @@ async function main() {
         computedUnit: computed ? computed.unit : null,
         computedUnitCount: computed ? computed.count : null,
         coupons: priceResult.coupons,
+        image: priceResult.image || '',
         alternatives,
         lastChecked: new Date().toISOString(),
       };
