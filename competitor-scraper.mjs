@@ -372,8 +372,8 @@ export class TargetScraper extends BaseScraper {
         return null;
       }
 
-      const result = await this.page.evaluate(() => {
-        // Find product cards — try multiple selectors for Target's evolving DOM
+      // Extract data from ALL product cards (up to 10)
+      const results = await this.page.evaluate(() => {
         const cards = document.querySelectorAll(
           '[data-test="@web/ProductCard/ProductCardVariantDefault"], ' +
           '[data-test="product-grid"] > div, ' +
@@ -381,98 +381,118 @@ export class TargetScraper extends BaseScraper {
           '[class*="ProductCardWrapper"], ' +
           '[class*="styles_cardOuter"]'
         );
-        if (cards.length === 0) return null;
+        if (cards.length === 0) return [];
 
-        const card = cards[0];
-
-        // Product name — try many approaches
-        let name = '';
-        // 1. data-test product-title
-        const titleEl = card.querySelector('a[data-test="product-title"], [data-test="product-title"]');
-        if (titleEl) name = titleEl.textContent.trim();
-        // 2. Link with /p/ in href (product link text)
-        if (!name) {
-          const productLink = card.querySelector('a[href*="/p/"]');
-          if (productLink) name = productLink.textContent.trim();
-        }
-        // 3. aria-label on the main link
-        if (!name) {
-          const ariaLink = card.querySelector('a[aria-label]');
-          if (ariaLink) name = ariaLink.getAttribute('aria-label').trim();
-        }
-        // 4. First non-empty link text in the card
-        if (!name) {
-          const links = card.querySelectorAll('a');
-          for (const link of links) {
-            const text = link.textContent.trim();
-            if (text.length > 5 && !text.startsWith('$')) { name = text; break; }
+        function extractCard(card) {
+          // Product name — try many approaches
+          let name = '';
+          const titleEl = card.querySelector('a[data-test="product-title"], [data-test="product-title"]');
+          if (titleEl) name = titleEl.textContent.trim();
+          if (!name) {
+            const productLink = card.querySelector('a[href*="/p/"]');
+            if (productLink) name = productLink.textContent.trim();
           }
-        }
-        // 5. Any heading element
-        if (!name) {
-          const heading = card.querySelector('h3, h4, [class*="Title"], [class*="title"]');
-          if (heading) name = heading.textContent.trim();
+          if (!name) {
+            const ariaLink = card.querySelector('a[aria-label]');
+            if (ariaLink) name = ariaLink.getAttribute('aria-label').trim();
+          }
+          if (!name) {
+            const links = card.querySelectorAll('a');
+            for (const link of links) {
+              const text = link.textContent.trim();
+              if (text.length > 5 && !text.startsWith('$')) { name = text; break; }
+            }
+          }
+          if (!name) {
+            const heading = card.querySelector('h3, h4, [class*="Title"], [class*="title"]');
+            if (heading) name = heading.textContent.trim();
+          }
+
+          // Price
+          const priceEl = card.querySelector('[data-test="current-price"]')
+            || card.querySelector('span[class*="CurrentPrice"]')
+            || card.querySelector('span[class*="styles_price"]');
+          let priceText = priceEl ? priceEl.textContent.trim() : '';
+          if (!priceText) {
+            const match = card.textContent.match(/\$\d+\.\d{2}/);
+            if (match) priceText = match[0];
+          }
+
+          // Unit price
+          const unitEl = card.querySelector('[data-test="unit-price"]')
+            || card.querySelector('span[class*="UnitPrice"]')
+            || card.querySelector('[class*="styles_unitPrice"]');
+          let unitText = unitEl ? unitEl.textContent.trim() : '';
+          if (!unitText) {
+            const unitMatch = card.textContent.match(/\(\$[\d.]+\/[a-z ]+\)/i);
+            if (unitMatch) unitText = unitMatch[0];
+          }
+
+          // URL
+          const linkEl = card.querySelector('a[href*="/p/"]')
+            || card.querySelector('a[data-test="product-title"]')
+            || card.querySelector('a[href*="target.com"]')
+            || card.querySelector('a');
+          let url = '';
+          if (linkEl) {
+            const href = linkEl.getAttribute('href') || '';
+            url = href.startsWith('http') ? href : 'https://www.target.com' + href;
+          }
+
+          // Product image
+          const imgEl = card.querySelector('img[src*="target.scene7.com"]')
+            || card.querySelector('picture img')
+            || card.querySelector('img[alt]');
+          const image = imgEl ? (imgEl.getAttribute('src') || '') : '';
+
+          return { name, priceText, unitText, url, image };
         }
 
-        // Price — try multiple selectors
-        const priceEl = card.querySelector('[data-test="current-price"]')
-          || card.querySelector('span[class*="CurrentPrice"]')
-          || card.querySelector('span[class*="styles_price"]');
-        let priceText = priceEl ? priceEl.textContent.trim() : '';
-        // Fallback: find first $X.XX pattern in card text
-        if (!priceText) {
-          const match = card.textContent.match(/\$\d+\.\d{2}/);
-          if (match) priceText = match[0];
+        const out = [];
+        for (let i = 0; i < Math.min(cards.length, 10); i++) {
+          out.push(extractCard(cards[i]));
         }
-
-        // Unit price
-        const unitEl = card.querySelector('[data-test="unit-price"]')
-          || card.querySelector('span[class*="UnitPrice"]')
-          || card.querySelector('[class*="styles_unitPrice"]');
-        let unitText = unitEl ? unitEl.textContent.trim() : '';
-        // Fallback: look for pattern like ($X.XX/ounce)
-        if (!unitText) {
-          const unitMatch = card.textContent.match(/\(\$[\d.]+\/[a-z ]+\)/i);
-          if (unitMatch) unitText = unitMatch[0];
-        }
-
-        // URL
-        const linkEl = card.querySelector('a[href*="/p/"]')
-          || card.querySelector('a[data-test="product-title"]')
-          || card.querySelector('a[href*="target.com"]')
-          || card.querySelector('a');
-        let url = '';
-        if (linkEl) {
-          const href = linkEl.getAttribute('href') || '';
-          url = href.startsWith('http') ? href : 'https://www.target.com' + href;
-        }
-
-        // Product image
-        const imgEl = card.querySelector('img[src*="target.scene7.com"]')
-          || card.querySelector('picture img')
-          || card.querySelector('img[alt]');
-        const image = imgEl ? (imgEl.getAttribute('src') || '') : '';
-
-        return { name, priceText, unitText, url, image };
+        return out;
       });
 
-      if (!result || !result.priceText) {
+      if (!results || results.length === 0) {
+        log(`  [target] No cards extracted from DOM for "${item.searchTerm}"`);
+        return null;
+      }
+
+      // Pick the best card: prefer one with a name we can compute unit price from
+      let bestResult = null;
+      for (const r of results) {
+        const pv = parsePrice(r.priceText);
+        if (!pv || !r.name) continue;
+        const computed = computeUnitPrice(r.name, pv);
+        if (computed) {
+          bestResult = r;
+          log(`  [target] Picked DOM card: "${r.name.slice(0, 60)}..." (has ${computed.count} ${computed.unit}s)`);
+          break;
+        }
+      }
+      // Fall back to first card with a price
+      if (!bestResult) {
+        bestResult = results.find(r => parsePrice(r.priceText) && r.name);
+      }
+      if (!bestResult || !bestResult.priceText) {
         log(`  [target] Could not extract price from DOM for "${item.searchTerm}"`);
         return null;
       }
 
-      const priceVal = parsePrice(result.priceText);
+      const priceVal = parsePrice(bestResult.priceText);
       if (!priceVal) return null;
 
-      const { unitPrice, unit } = parseUnitPrice(result.unitText);
+      const { unitPrice, unit } = parseUnitPrice(bestResult.unitText);
 
       return {
-        name: result.name.slice(0, 200),
+        name: bestResult.name.slice(0, 200),
         price: priceVal,
         unitPrice: unitPrice,
         unit: unit,
-        url: result.url,
-        image: result.image || '',
+        url: bestResult.url,
+        image: bestResult.image || '',
         lastChecked: new Date().toISOString(),
       };
     } catch (err) {
