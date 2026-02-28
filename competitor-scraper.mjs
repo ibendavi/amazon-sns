@@ -460,11 +460,23 @@ export class TargetScraper extends BaseScraper {
         return null;
       }
 
-      // Pick the best card: prefer one with a name we can compute unit price from
+      // Pick the best card: must be relevant AND have extractable quantity
+      // Build relevance keywords from search term (e.g. "toilet paper 24 mega rolls" -> ["toilet", "paper"])
+      const searchWords = item.searchTerm.toLowerCase().split(/\s+/).filter(w => w.length > 2 && !/^\d+$/.test(w));
+      function isRelevant(name) {
+        const nameLower = (name || '').toLowerCase();
+        // At least 2 search words must appear in the product name (or 1 if search has ≤2 words)
+        const threshold = Math.min(2, searchWords.length);
+        const matches = searchWords.filter(w => nameLower.includes(w)).length;
+        return matches >= threshold;
+      }
+
       let bestResult = null;
+      // Pass 1: relevant + has extractable unit price
       for (const r of results) {
         const pv = parsePrice(r.priceText);
         if (!pv || !r.name) continue;
+        if (!isRelevant(r.name)) continue;
         const computed = computeUnitPrice(r.name, pv);
         if (computed) {
           bestResult = r;
@@ -472,7 +484,11 @@ export class TargetScraper extends BaseScraper {
           break;
         }
       }
-      // Fall back to first card with a price
+      // Pass 2: relevant but no extractable unit
+      if (!bestResult) {
+        bestResult = results.find(r => parsePrice(r.priceText) && r.name && isRelevant(r.name));
+      }
+      // Pass 3: any card with a price (last resort)
       if (!bestResult) {
         bestResult = results.find(r => parsePrice(r.priceText) && r.name);
       }
