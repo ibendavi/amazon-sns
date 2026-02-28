@@ -258,7 +258,7 @@ export class TargetScraper extends BaseScraper {
         key: TARGET_API_KEY,
         keyword: item.searchTerm,
         channel: 'WEB',
-        count: '5',
+        count: '10',
         default_purchasability_filter: 'true',
         page: '/s/' + encodeURIComponent(item.searchTerm),
         pricing_store_id: '3991',
@@ -293,8 +293,26 @@ export class TargetScraper extends BaseScraper {
         return null;
       }
 
-      // Take first product
-      const product = products[0];
+      // Pick the best product: prefer one whose name contains quantity info
+      // that we can compute a unit price from, otherwise fall back to first
+      let product = null;
+      for (const p of products) {
+        const title = p?.item?.product_description?.title || '';
+        const pPrice = parsePrice(String(p?.price?.current_retail ?? p?.price?.formatted_current_price ?? ''));
+        if (!pPrice) continue;
+        const computed = computeUnitPrice(title, pPrice);
+        if (computed) {
+          product = p;
+          log(`  [target] Picked "${title.slice(0, 60)}..." (has ${computed.count} ${computed.unit}s)`);
+          break;
+        }
+      }
+      if (!product) {
+        // Fall back to first product with a price
+        product = products.find(p => parsePrice(String(p?.price?.current_retail ?? p?.price?.formatted_current_price ?? '')));
+      }
+      if (!product) return null;
+
       const item_data = product?.item;
       const price_data = product?.price;
 
@@ -827,9 +845,9 @@ async function main() {
         if (result) {
           log(`  [${storeKey}] Found: ${result.name.slice(0, 60)}... @ $${result.price.toFixed(2)}`);
 
-          // Compute unit price from the competitor product name
-          const computed = computeUnitPrice(result.name, result.price)
-            || computeUnitPrice(item.name, result.price); // fallback: use Amazon item name for unit category
+          // Compute unit price from the competitor product name ONLY
+          // Never fall back to Amazon item name — quantities differ between stores
+          const computed = computeUnitPrice(result.name, result.price);
           if (computed) {
             result.computedUnitPrice = computed.formatted;
             result.computedUnitPriceNum = computed.unitPrice;
