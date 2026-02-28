@@ -110,8 +110,8 @@ function parseUnitPrice(text) {
 // ========== Unit Price Computation (same as scraper.mjs) ==========
 
 const UNIT_MAPPINGS = {
-  'toilet paper': { unit: 'roll', pattern: /(\d+)\s*(?:\w+\s+)*rolls?/i },
-  'paper towels': { unit: 'roll', pattern: /(\d+)\s*(?:\w+\s+)*rolls?/i },
+  // Toilet paper and paper towels: DON'T use "roll" — roll sizes vary wildly
+  // (Mega Roll, Huge Roll, Regular Roll, Double Roll are all different sizes).
   'cat food.*cans': { unit: 'can', pattern: /(\d+)\s*cans?/i },
   'cat food.*lb': { unit: 'lb', pattern: /([\d.]+)\s*lbs?/i },
   'dog food.*lb': { unit: 'lb', pattern: /([\d.]+)\s*lbs?/i },
@@ -123,7 +123,7 @@ const UNIT_MAPPINGS = {
     return val;
   }},
   'almonds': { unit: 'oz', pattern: /(\d+)\s*oz/i },
-  'seeds': { unit: 'oz', pattern: /([\d.]+)\s*(?:lbs?|oz)/i, multiplier: (m) => m[0].includes('lb') ? parseFloat(m[1]) * 16 : parseFloat(m[1]) },
+  'seeds': { unit: 'oz', pattern: /([\d.]+)\s*(?:lbs?|oz)/i, multiplier: (m) => m[0].toLowerCase().includes('lb') ? parseFloat(m[1]) * 16 : parseFloat(m[1]) },
   'batteries': { unit: 'battery', pattern: /(\d+)\s*(?:pack|count|ct)/i },
   'tablets': { unit: 'tablet', pattern: /(\d+)\s*tablets?/i },
   'softgels': { unit: 'softgel', pattern: /(\d+)\s*softgels?/i },
