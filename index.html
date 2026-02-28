@@ -1218,14 +1218,17 @@
               if (diff > 0.005) savingsHtml = `<div class="alt-savings">$${diff.toFixed(2)}/${unit} cheaper</div>`;
               else if (diff < -0.005) savingsHtml = `<div class="alt-savings more-expensive">$${Math.abs(diff).toFixed(2)}/${unit} more</div>`;
             } else if (alt.priceNum && currentPrice) {
-              // Total price comparison (may be different sizes)
-              const diff = currentPrice - alt.priceNum;
-              if (Math.abs(diff) > 0.01) {
-                // Only show "different size" if current item has unit data but alt doesn't match
-                const currentHasUnit = pd?.computedUnit;
-                const note = currentHasUnit && !alt.comparableUnit ? ' (different size)' : '';
-                if (diff > 0) savingsHtml = `<div class="alt-savings">$${diff.toFixed(2)} less${note}</div>`;
-                else savingsHtml = `<div class="alt-savings more-expensive">$${Math.abs(diff).toFixed(2)} more${note}</div>`;
+              // Total price comparison — only valid when no unit data (same product type)
+              const currentHasUnit = pd?.computedUnit;
+              if (currentHasUnit && !alt.comparableUnit) {
+                // Can't compare: different quantities. Show warning instead of misleading savings.
+                savingsHtml = `<div class="alt-savings" style="color:#999">Can't compare — different size</div>`;
+              } else {
+                const diff = currentPrice - alt.priceNum;
+                if (Math.abs(diff) > 0.01) {
+                  if (diff > 0) savingsHtml = `<div class="alt-savings">$${diff.toFixed(2)} less</div>`;
+                  else savingsHtml = `<div class="alt-savings more-expensive">$${Math.abs(diff).toFixed(2)} more</div>`;
+                }
               }
             }
 
