@@ -111,6 +111,19 @@ function computeUnitPrice(itemName, totalPrice) {
 
 // ========== Helpers ==========
 
+function decodeHtmlEntities(text) {
+  return text
+    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(n))
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, h) => String.fromCharCode(parseInt(h, 16)))
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&#39;/g, "'")
+    .replace(/&#34;/g, '"');
+}
+
 function randomDelay(minMs, maxMs) {
   const ms = Math.floor(Math.random() * (maxMs - minMs)) + minMs;
   return new Promise(r => setTimeout(r, ms));
@@ -557,8 +570,8 @@ async function discoverSubscriptions(browser, db) {
   log('=== Discovering ALL S&S Subscriptions ===');
   const page = await browser.newPage();
 
-  const url = 'https://www.amazon.com/gp/subscribe-and-save/manager/viewsubscriptions';
-  log('  Loading S&S management page...');
+  const url = 'https://www.amazon.com/auto-deliveries/';
+  log('  Loading S&S deliveries page...');
   await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
   await randomDelay(4000, 6000);
 
@@ -569,91 +582,177 @@ async function discoverSubscriptions(browser, db) {
       await page.close();
       return null;
     }
-    // Re-navigate after login
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
     await randomDelay(4000, 6000);
   }
 
   log('  Page loaded: ' + page.url());
-
-  // Wait for content to render (JS-heavy page)
   await randomDelay(3000, 5000);
 
-  // Scroll to load all lazy content
-  for (let i = 0; i < 15; i++) {
+  // Scroll to load lazy content
+  for (let i = 0; i < 10; i++) {
     await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-    await randomDelay(1000, 2000);
+    await randomDelay(800, 1200);
   }
-  await page.evaluate(() => window.scrollTo(0, 0));
-  await randomDelay(1000, 1500);
 
-  // Extract subscriptions using .snsBasePrice[data-asin] elements
-  // Each one represents an active S&S subscription on the management page
-  const subscriptions = await page.evaluate(() => {
-    const basePrices = document.querySelectorAll('.snsBasePrice[data-asin]');
-    const subs = [];
+  // --- Step 1: Get ALL subscription cards from initial page + AJAX pagination ---
+  // Subscription cards ([data-subscription-id]) represent ALL active S&S subscriptions.
+  // Each has a name and subscription ID but NO ASIN — we resolve ASINs from detail pages.
+  const { paginationUrl, totalItemCount, initialCards } = await page.evaluate(() => {
+    let paginationUrl = null;
+    let totalItemCount = 0;
+    const stateScripts = document.querySelectorAll('script[type="a-state"]');
+    for (const script of stateScripts) {
+      try {
+        const data = JSON.parse(script.textContent);
+        if (data.totalItemCount && data.url) {
+          paginationUrl = data.url;
+          totalItemCount = data.totalItemCount;
+          break;
+        }
+      } catch {}
+    }
 
-    for (const bp of basePrices) {
-      const asin = bp.dataset.asin;
-      if (!asin || asin.length < 5) continue;
-
-      // Walk up 2 levels to the card container
-      let card = bp.parentElement?.parentElement;
-      if (!card) card = bp.parentElement || bp;
-
-      // If the container is too small, walk up more
-      while (card && card.children.length < 3 && card.parentElement) {
-        card = card.parentElement;
-      }
-
-      // Product name from img alt text (most reliable on this page)
+    const cards = document.querySelectorAll('[data-subscription-id]');
+    const items = [];
+    for (const card of cards) {
+      const subId = card.dataset.subscriptionId;
       const img = card.querySelector('img[alt]');
       const name = img?.alt || '';
-
-      // Price from .a-offscreen inside snsBasePrice
-      const offscreen = bp.querySelector('.a-offscreen');
-      const priceRaw = offscreen?.textContent?.trim() || '';
-      const priceMatch = priceRaw.match(/\$[\d.]+/);
-      const price = priceMatch ? priceMatch[0] : '';
-
-      // Frequency from the dropdown
-      const freqSelect = card.querySelector('select.a-native-dropdown');
-      const freqValue = freqSelect?.value || ''; // e.g. "4M|sns"
-      const freqPrompt = card.querySelector('.a-dropdown-prompt');
-      const freqText = freqPrompt?.textContent?.trim() || ''; // e.g. "4 months"
-
-      // Product image URL
       const imgSrc = img?.src || '';
-
-      // Purchase count badge (e.g. "Purchased 27 times")
-      const badgeEl = card.querySelector('[class*="badge"]');
-      const badge = badgeEl?.textContent?.trim() || '';
-      const purchaseMatch = badge.match(/Purchased\s+(\d+)\s+time/);
-      const purchaseCount = purchaseMatch ? parseInt(purchaseMatch[1]) : 0;
-
-      if (name && name.length > 3) {
-        subs.push({
-          asin,
-          name: name.substring(0, 200),
-          price,
-          freq: freqText,
-          freqValue,
-          image: imgSrc,
-          purchaseCount,
-        });
+      if (name.length > 3) {
+        items.push({ subId, name: name.substring(0, 200), image: imgSrc });
       }
     }
 
-    return subs;
+    return { paginationUrl, totalItemCount, initialCards: items };
   });
 
-  log(`  Found ${subscriptions.length} active subscriptions`);
+  log(`  Step 1: ${initialCards.length} subscription cards on page (total: ${totalItemCount})`);
 
-  if (subscriptions.length > 0) {
-    // Save to Firebase subscriptions/ node
+  // Fetch remaining cards via AJAX pagination
+  const allCards = [...initialCards];
+  const seenSubIds = new Set(initialCards.map(c => c.subId));
+
+  if (paginationUrl && allCards.length < totalItemCount) {
+    for (let offset = 30; offset < totalItemCount; offset += 30) {
+      const ajaxUrl = `${paginationUrl}&offset=${offset}&deliveryDate=1773126000000`;
+      log(`  Fetching AJAX offset=${offset}...`);
+
+      const ajaxCards = await page.evaluate(async (fetchUrl) => {
+        try {
+          const res = await fetch(fetchUrl, { credentials: 'include' });
+          const html = await res.text();
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(html, 'text/html');
+          const cards = doc.querySelectorAll('[data-subscription-id]');
+          const items = [];
+          for (const card of cards) {
+            const subId = card.dataset.subscriptionId;
+            const img = card.querySelector('img[alt]');
+            const name = img?.alt || '';
+            const imgSrc = img?.src || '';
+            if (name.length > 3) {
+              items.push({ subId, name: name.substring(0, 200), image: imgSrc });
+            }
+          }
+          return items;
+        } catch (e) {
+          return [];
+        }
+      }, ajaxUrl);
+
+      let newCount = 0;
+      for (const card of ajaxCards) {
+        if (!seenSubIds.has(card.subId)) {
+          seenSubIds.add(card.subId);
+          allCards.push(card);
+          newCount++;
+        }
+      }
+      log(`    Got ${ajaxCards.length} cards (${newCount} new, ${allCards.length} total)`);
+    }
+  }
+
+  log(`  Total subscription cards: ${allCards.length}`);
+
+  // --- Step 2: Resolve ASINs from subscription detail pages ---
+  log(`  Step 2: Resolving ASINs from detail pages (${allCards.length} items)...`);
+  const allSubscriptions = [];
+  const seenAsins = new Set();
+
+  for (const card of allCards) {
+    try {
+      const detailUrl = `https://www.amazon.com/auto-deliveries/ajax/subscription?deviceType=desktop&deviceContext=web&subscriptionId=${card.subId}`;
+      await page.goto(detailUrl, { waitUntil: 'domcontentloaded', timeout: 15000 });
+      await randomDelay(1500, 2500);
+
+      const detail = await page.evaluate(() => {
+        // Get ASIN from /dp/ links
+        let asin = '';
+        const dpLinks = document.querySelectorAll('a[href*="/dp/"]');
+        for (const l of dpLinks) {
+          const m = l.href.match(/\/dp\/([A-Z0-9]{10})/);
+          if (m) { asin = m[1]; break; }
+        }
+
+        // Get frequency — try multiple approaches
+        let freq = '';
+        let freqValue = '';
+
+        // Approach 1: Dropdown prompt
+        const freqPrompt = document.querySelector('.a-dropdown-prompt');
+        if (freqPrompt) freq = freqPrompt.textContent?.trim() || '';
+
+        // Approach 2: Selected option in dropdown
+        const freqSelect = document.querySelector('select.a-native-dropdown');
+        if (freqSelect) {
+          freqValue = freqSelect.value || '';
+          if (!freq) {
+            const selected = freqSelect.querySelector('option:checked, option[selected]');
+            freq = selected?.textContent?.trim() || '';
+          }
+        }
+
+        // Approach 3: Look for frequency text in the page
+        if (!freq) {
+          const body = document.body.innerText;
+          const freqMatch = body.match(/(?:Every|Deliver every)\s+(\d+\s+(?:month|week|day)s?)/i);
+          if (freqMatch) freq = freqMatch[1];
+        }
+
+        return { asin, freq, freqValue };
+      });
+
+      if (detail.asin && !seenAsins.has(detail.asin)) {
+        seenAsins.add(detail.asin);
+        const decodedName = decodeHtmlEntities(card.name);
+        allSubscriptions.push({
+          asin: detail.asin,
+          name: decodedName,
+          price: '', // Will be scraped from product page later
+          freq: detail.freq,
+          freqValue: detail.freqValue,
+          image: card.image,
+          purchaseCount: 0,
+        });
+        log(`    ${allSubscriptions.length}. ${detail.asin} — ${decodedName.substring(0, 50)} — ${detail.freq}`);
+      } else if (detail.asin) {
+        log(`    (dup) ${detail.asin} — ${card.name.substring(0, 40)}`);
+      } else {
+        log(`    WARN: No ASIN for ${card.name.substring(0, 40)}`);
+      }
+    } catch (err) {
+      log(`    ERROR: ${card.name.substring(0, 40)}: ${err.message}`);
+    }
+  }
+
+  log(`  Found ${allSubscriptions.length} unique subscriptions`);
+
+  if (allSubscriptions.length > 0) {
     if (db) {
       const subsData = {};
-      for (const sub of subscriptions) {
+      for (const sub of allSubscriptions) {
         subsData[sub.asin] = {
           name: sub.name,
           asin: sub.asin,
@@ -666,10 +765,10 @@ async function discoverSubscriptions(browser, db) {
         };
       }
       await db.ref('subscriptions').set(subsData);
-      log(`  Saved ${subscriptions.length} subscriptions to Firebase`);
+      log(`  Saved ${allSubscriptions.length} subscriptions to Firebase`);
     }
 
-    subscriptions.forEach((sub, i) => {
+    allSubscriptions.forEach((sub, i) => {
       log(`  ${i + 1}. ${sub.name.substring(0, 60)} (${sub.asin}) ${sub.price} — ${sub.freq}`);
     });
   } else {
@@ -679,7 +778,7 @@ async function discoverSubscriptions(browser, db) {
   }
 
   await page.close();
-  return subscriptions;
+  return allSubscriptions;
 }
 
 async function main() {
