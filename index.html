@@ -192,7 +192,7 @@
     <h1><span style="display:inline-block;transform:rotate(180deg);font-size:0.7em;color:#FF9900;margin-right:4px;position:relative;top:-2px">amazon</span> Subscribe & Save</h1>
     <span class="sync-dot" id="syncDot" title="Offline"></span>
   </div>
-  <div class="subtitle"><span id="itemCount">44</span> subscriptions &mdash; sorted by predicted need</div>
+  <div class="subtitle"><span id="itemCount">...</span> subscriptions &mdash; sorted by predicted need</div>
   <div class="deadline">Next delivery: March 10, 2026 &mdash; Last day to edit: Wednesday, March 4</div>
 
   <!-- Spending Dashboard -->
@@ -258,52 +258,10 @@
 
   <script>
     // ========== Item Data ==========
-    const items = [
-      { id: 13, name: "Presto! Toilet Paper (24 Family Mega Rolls)", price: "$24.64", qty: 3, freq: "1 month", category: "household", alternatives: [] },
-      { id: 43, name: "Lavazza Espresso Whole Bean Coffee (2-pack)", price: "$34.19", qty: 2, freq: "1 month", category: "food", alternatives: [] },
-      { id: 32, name: "Purina Friskies Variety Pack Cat Food (40 cans)", price: "$31.12", qty: 2, freq: "1 month", category: "pet", alternatives: [] },
-      { id: 18, name: "Purina Friskies Shreds Cat Food (24 cans)", price: "$19.15", qty: 2, freq: "1 month", category: "pet", alternatives: [] },
-      { id: 5, name: "Presto! Paper Towels (12 Huge Rolls)", price: "$25.49", qty: 1, freq: "1 month", category: "household", alternatives: [] },
-      { id: 35, name: "Blue Diamond Dark Chocolate Almonds (25 oz)", price: "$9.76", qty: 2, freq: "1 month", category: "food", alternatives: [] },
-      { id: 10, name: "Purina Cat Chow Naturals Indoor (13 lb)", price: "$16.13", qty: 1, freq: "1 month", category: "pet", alternatives: [] },
-      { id: 20, name: "Terrasoul Organic Sunflower Seeds (2 lbs)", price: "$13.49", qty: 1, freq: "1 month", category: "food", alternatives: [] },
-      { id: 31, name: "Happy Belly Roasted Almonds (24 oz)", price: "$7.56", qty: 1, freq: "1 month", category: "food", alternatives: [] },
-      { id: 22, name: "Blue Diamond Wasabi & Soy Sauce Almonds (16 oz)", price: "$6.79", qty: 1, freq: "1 month", category: "food", alternatives: [] },
-      { id: 30, name: "Purina ONE Dog Food Beef & Salmon (27.5 lb)", price: "", qty: 1, freq: "1 month", category: "pet", alternatives: [] },
-      { id: 29, name: "Har Bracha Tahini Paste (12 pack)", price: "$94.97", qty: 1, freq: "2 months", category: "food", alternatives: [] },
-      { id: 3, name: "Lavazza Super Crema Whole Bean Coffee (2.2 lb)", price: "$31.43", qty: 1, freq: "2 months", category: "food", alternatives: [] },
-      { id: 1, name: "Mucinex 12 Hour Maximum Strength 1200mg (48 tablets)", price: "$27.79", qty: 1, freq: "2 months", category: "personal", alternatives: [] },
-      { id: 28, name: "PUREPLUS 9690 Refrigerator Water Filter (4 pack)", price: "$27.38", qty: 1, freq: "2 months", category: "household", alternatives: [] },
-      { id: 41, name: "Amazon Basics Liquid Hand Soap Refill (2-pack)", price: "$8.02", qty: 1, freq: "2 months", category: "household", alternatives: [] },
-      { id: 33, name: "Downy CALM Mega Dryer Sheets Lavender (130 ct)", price: "$7.35", qty: 1, freq: "2 months", category: "household", alternatives: [] },
-      { id: 9, name: "Hill's Prescription Diet t/d Cat Food (8.5 lb)", price: "", qty: 1, freq: "2 months", category: "pet", alternatives: [] },
-      { id: 14, name: "Gillette Clinical Deodorant Cool Wave (3-pack)", price: "$43.32", qty: 2, freq: "3 months", category: "personal", alternatives: [] },
-      { id: 40, name: "Endangered Species Dark Chocolate 88% (12 bars)", price: "$47.49", qty: 1, freq: "3 months", category: "food", alternatives: [] },
-      { id: 26, name: "Triple Strength Fish Oil Omega 3 (180 softgels)", price: "$45.01", qty: 1, freq: "3 months", category: "personal", alternatives: [] },
-      { id: 47, name: "Brawny Tear-A-Square Paper Towels (12 XL Rolls)", price: "$26.77", qty: 1, freq: "3 months", category: "household", alternatives: [] },
-      { id: 21, name: "Energizer Ultimate Lithium 9V (2 pack)", price: "$26.50", qty: 1, freq: "3 months", category: "household", alternatives: [] },
-      { id: 27, name: "Vicks VapoShower Plus (12 count)", price: "$21.79", qty: 1, freq: "3 months", category: "personal", alternatives: [] },
-      { id: 39, name: "GUM Soft-Picks Advanced (90ct, 3-pack)", price: "$19.79", qty: 1, freq: "5 months", category: "personal", alternatives: [] },
-      { id: 46, name: "Biotrue Contact Solution (10oz, 2-pack)", price: "$14.44", qty: 1, freq: "5 months", category: "personal", alternatives: [] },
-      { id: 25, name: "Scotch Magic Tape (6 rolls w/ dispensers)", price: "$13.33", qty: 1, freq: "4 months", category: "household", alternatives: [] },
-      { id: 45, name: "Gillette Clinical Deodorant Arctic Ice (2.6 oz)", price: "$11.02", qty: 8, freq: "6 months", category: "personal", alternatives: [] },
-      { id: 36, name: "Dr. Elsey's Ultra Unscented Cat Litter (40 lb)", price: "$20.69", qty: 4, freq: "6 months", category: "pet", alternatives: [] },
-      { id: 19, name: "Nautica Voyage EDT (6.7 oz)", price: "$25.37", qty: 1, freq: "6 months", category: "personal", alternatives: [] },
-      { id: 8, name: "Nescafe Taster's Choice Instant Coffee (2x 7oz)", price: "$22.92", qty: 1, freq: "6 months", category: "food", alternatives: [] },
-      { id: 12, name: "Sensodyne Pronamel Whitening Toothpaste (4-pack)", price: "$21.24", qty: 1, freq: "6 months", category: "personal", alternatives: [] },
-      { id: 7, name: "Gillette ProGlide Razor Refills (8 count)", price: "$19.76", qty: 1, freq: "6 months", category: "personal", alternatives: [] },
-      { id: 15, name: "Lysol Disinfectant Wipes (4-pack)", price: "$19.65", qty: 1, freq: "6 months", category: "household", alternatives: [] },
-      { id: 6, name: "Febreze AIR Linen & Sky (6-pack)", price: "$18.94", qty: 1, freq: "6 months", category: "household", alternatives: [] },
-      { id: 2, name: "CeraVe Foaming Facial Cleanser (19 oz)", price: "$15.27", qty: 1, freq: "6 months", category: "personal", alternatives: [] },
-      { id: 11, name: "Energizer 123 Lithium Batteries (6 pack)", price: "$11.05", qty: 1, freq: "6 months", category: "household", alternatives: [] },
-      { id: 38, name: "Oral-B Glide Floss Pro-Health Mint (3-pack)", price: "$9.47", qty: 1, freq: "6 months", category: "personal", alternatives: [] },
-      { id: 16, name: "O'Keeffe's Working Hands (3.4 oz)", price: "$9.13", qty: 1, freq: "6 months", category: "personal", alternatives: [] },
-      { id: 23, name: "Carlyle Melatonin 12mg (180 tablets)", price: "$8.54", qty: 1, freq: "6 months", category: "personal", alternatives: [] },
-      { id: 34, name: "Dove White Peach Body Scrub (15 oz)", price: "$6.77", qty: 1, freq: "6 months", category: "personal", alternatives: [] },
-      { id: 4, name: "Energizer 2032 Batteries (2 count)", price: "$3.82", qty: 1, freq: "6 months", category: "household", alternatives: [] },
-      { id: 17, name: "Reynolds Quick Cut Plastic Wrap (225 sq ft)", price: "$3.39", qty: 1, freq: "6 months", category: "household", alternatives: [] },
-      { id: 42, name: "Lebanon Valley Tahineh (32 oz)", price: "", qty: 1, freq: "", note: "unavailable", category: "food", alternatives: [] },
-    ];
+    // Items are loaded dynamically from Firebase subscriptions/ node.
+    // Each item.id = ASIN (string), populated when Firebase connects.
+    let items = [];
+    let itemsLoaded = false;
 
     // ========== Category Labels ==========
     const CATEGORY_LABELS = {
@@ -516,7 +474,52 @@
             }
           });
 
-          // Price data
+          // Subscriptions — the source of truth for what items exist
+          db.ref('subscriptions').on('value', snapshot => {
+            const subs = snapshot.val();
+            if (!subs) return;
+            const existingIds = new Set(items.map(i => i.id));
+            let changed = false;
+            for (const [asin, sub] of Object.entries(subs)) {
+              if (existingIds.has(asin)) {
+                // Update existing item's metadata
+                const existing = items.find(i => i.id === asin);
+                if (existing) {
+                  if (sub.freq && sub.freq !== existing.freq) existing.freq = sub.freq;
+                  if (sub.image) existing.image = sub.image;
+                }
+                continue;
+              }
+              // New subscription
+              items.push({
+                id: asin,  // ASIN as the primary key
+                name: sub.name || asin,
+                price: sub.price || '',
+                qty: 1,
+                freq: sub.freq || '',
+                category: 'other',
+                alternatives: [],
+                image: sub.image || '',
+                purchaseCount: sub.purchaseCount || 0,
+              });
+              existingIds.add(asin);
+              changed = true;
+            }
+            // Remove items no longer in subscriptions
+            const subAsins = new Set(Object.keys(subs));
+            const before = items.length;
+            items = items.filter(i => subAsins.has(i.id));
+            if (items.length !== before) changed = true;
+
+            if (changed || !itemsLoaded) {
+              itemsLoaded = true;
+              state = loadState();
+              document.getElementById('itemCount').textContent = items.length;
+              renderAll();
+            }
+          });
+
+          // Price data (keyed by ASIN)
           priceDataRef.on('value', snapshot => {
             const data = snapshot.val();
             if (!data) return;
@@ -525,56 +528,11 @@
               const pd = priceData[item.id];
               if (pd) {
                 if (pd.alternatives && pd.alternatives.length > 0) item.alternatives = pd.alternatives;
-                if (pd.snsPrice && !item.price) item.price = '$' + pd.snsPrice.toFixed(2);
+                if (pd.snsPrice) item.price = '$' + pd.snsPrice.toFixed(2);
+                if (pd.image && !item.image) item.image = pd.image;
               }
             });
             renderAll();
-          });
-
-          // Item ASINs
-          db.ref('itemConfig').on('value', snapshot => {
-            const data = snapshot.val();
-            if (!data) return;
-            itemAsins = {};
-            for (const [id, config] of Object.entries(data)) {
-              if (config.asin) itemAsins[id] = config.asin;
-            }
-            renderItems(currentFilter());
-          });
-
-          // All subscriptions — merge items not in hardcoded list
-          db.ref('subscriptions').on('value', snapshot => {
-            const subs = snapshot.val();
-            if (!subs) return;
-            const existingAsins = new Set();
-            // Build ASIN set from hardcoded items
-            for (const [id, asin] of Object.entries(itemAsins)) {
-              existingAsins.add(asin);
-            }
-            let nextId = Math.max(...items.map(i => i.id)) + 1;
-            let added = 0;
-            for (const [asin, sub] of Object.entries(subs)) {
-              if (existingAsins.has(asin)) continue;
-              // New subscription not in hardcoded list — add it
-              const newItem = {
-                id: nextId++,
-                name: sub.name || asin,
-                price: sub.price || '',
-                qty: 1,
-                freq: sub.freq || '',
-                category: 'other',
-                alternatives: [],
-                _fromFirebase: true,
-              };
-              items.push(newItem);
-              itemAsins[newItem.id] = asin;
-              existingAsins.add(asin);
-              added++;
-            }
-            if (added > 0) {
-              document.getElementById('itemCount').textContent = items.length;
-              renderAll();
-            }
           });
 
           // Alt preferences sync
@@ -629,10 +587,12 @@
             renderProgress();
           });
 
-          // Push current state
-          const updates = {};
-          items.forEach(item => { updates[item.id] = !!state[item.id]; });
-          selectionsRef.update(updates);
+          // Push current state (only if items exist)
+          if (items.length > 0) {
+            const updates = {};
+            items.forEach(item => { updates[item.id] = !!state[item.id]; });
+            selectionsRef.update(updates);
+          }
           if (Object.keys(cancelQueue).length > 0) cancelQueueRef.update(cancelQueue);
           if (Object.keys(altPreferences).length > 0) db.ref('altPreferences').update(altPreferences);
         }).catch(err => console.warn('Firebase auth failed:', err));
@@ -660,8 +620,8 @@
       items.forEach(i => st[i.id] = true);
       if (hash) {
         hash.split(',').forEach(s => {
-          const n = parseInt(s);
-          if (!isNaN(n)) st[n] = false;
+          const id = s.trim();
+          if (id) st[id] = false;
         });
       }
       return st;
@@ -693,7 +653,6 @@
     let altPreferences = JSON.parse(localStorage.getItem('sns-alt-prefs') || '{}');
     let cancelQueue = JSON.parse(localStorage.getItem('sns-cancel-queue') || '{}');
     let priceData = {};
-    let itemAsins = {};
     let orderHistory = {};
     let competitorPrices = {};
     let priceHistory = {};
@@ -874,8 +833,7 @@
           <div class="alert-title" style="color:#FF9900">Resub Opportunities &mdash; save $${totalSavings.toFixed(2)}/delivery</div>
           <div class="alert-detail">These items are cheaper if you unsubscribe and resubscribe:</div>
           ${opps.map(o => {
-            const asin = itemAsins[o.item.id];
-            const link = asin ? `<a href="https://www.amazon.com/dp/${asin}" target="_blank" style="color:inherit">${o.item.name}</a>` : o.item.name;
+            const link = `<a href="https://www.amazon.com/dp/${o.item.id}" target="_blank" style="color:inherit">${o.item.name}</a>`;
             return `<div style="margin:6px 0;font-size:0.85rem">
               ${link}: <strong>$${o.current.toFixed(2)}</strong> &rarr; <strong style="color:#1e7e34">$${o.resub.toFixed(2)}</strong>
               (save $${o.savings.toFixed(2)}${o.item.qty > 1 ? ' x' + o.item.qty + ' = $' + (o.savings * o.item.qty).toFixed(2) : ''})
@@ -1366,7 +1324,7 @@
             // Link/button
             let actionBtn = '';
             if (isAmazon && alt.asin) {
-              actionBtn = `<button class="alt-switch${isSelected ? ' selected' : ''}" onclick="switchAlt(${item.id}, '${escapedName}')">${isSelected ? 'Selected' : 'Switch'}</button>`;
+              actionBtn = `<button class="alt-switch${isSelected ? ' selected' : ''}" onclick="switchAlt('${item.id}', '${escapedName}')">${isSelected ? 'Selected' : 'Switch'}</button>`;
             } else if (alt.url) {
               actionBtn = `<a href="${alt.url}" target="_blank" class="alt-link">View \u2192</a>`;
             }
@@ -1419,10 +1377,10 @@
 
         li.innerHTML = `
           <span class="item-num">${idx}</span>
-          <input type="checkbox" ${checked ? 'checked' : ''} onchange="toggle(${item.id}, this.checked)" id="cb-${item.id}">
+          <input type="checkbox" ${checked ? 'checked' : ''} onchange="toggle('${item.id}', this.checked)" id="cb-${item.id}">
           ${itemImgHtml}
           <div class="item-details">
-            <div class="item-name">${itemAsins[item.id] ? '<a href="https://www.amazon.com/dp/' + itemAsins[item.id] + '" target="_blank" style="color:inherit">' + item.name + '</a>' : item.name}${prefHtml}${isCancelled ? '<span class="cancel-label">Pending cancellation</span>' : ''}</div>
+            <div class="item-name"><a href="https://www.amazon.com/dp/${item.id}" target="_blank" style="color:inherit">${item.name}</a>${prefHtml}${isCancelled ? '<span class="cancel-label">Pending cancellation</span>' : ''}</div>
             <div class="item-meta">
               ${(() => {
                 const oh = orderHistory[item.id];
@@ -1444,7 +1402,7 @@
             ${altHtml}
           </div>
           <span class="item-price">${priceDisplay}</span>
-          ${!isCancelled ? `<button class="cancel-btn" onclick="cancelItem(${item.id})" title="Cancel subscription">&times;</button>` : ''}
+          ${!isCancelled ? `<button class="cancel-btn" onclick="cancelItem('${item.id}')" title="Cancel subscription">&times;</button>` : ''}
         `;
         list.appendChild(li);
       });
@@ -1549,7 +1507,7 @@
 
       // Switches
       Object.entries(altPreferences).forEach(([id, altName]) => {
-        const item = items.find(i => i.id === parseInt(id));
+        const item = items.find(i => i.id === id);
         if (item) actions.push({ type: 'switch', label: `Switch "${item.name}" to "${altName}"` });
       });
 
@@ -1698,12 +1656,9 @@
       for (const [id, data] of candidates) {
         const card = document.createElement('div');
         card.className = 'deletion-card';
-        const asin = itemAsins[id];
-        const itemObj = items.find(i => i.id === parseInt(id));
+        const itemObj = items.find(i => i.id === id);
         const displayName = data.itemName || (itemObj ? itemObj.name : 'Item ' + id);
-        const nameHtml = asin
-          ? `<a href="https://www.amazon.com/dp/${asin}" target="_blank" style="color:inherit">${displayName}</a>`
-          : displayName;
+        const nameHtml = `<a href="https://www.amazon.com/dp/${id}" target="_blank" style="color:inherit">${displayName}</a>`;
         card.innerHTML = `
           <div class="dc-name">${nameHtml}</div>
           <div class="dc-reason">${data.deletionReason}</div>
@@ -1719,6 +1674,8 @@
 
     // ========== Init ==========
     initFirebase();
+    // Show loading state until subscriptions arrive from Firebase
+    document.getElementById('itemList').innerHTML = '<div style="padding:20px;color:#999;text-align:center">Loading subscriptions from Firebase...</div>';
     renderAll();
   </script>
 </body>

@@ -6,10 +6,11 @@
  * then writes results to Firebase priceData/ node.
  *
  * Usage:
- *   node scraper.mjs              # scrape all items
- *   node scraper.mjs --dry-run    # scrape but don't write to Firebase
- *   node scraper.mjs --item 13    # scrape a single item by ID
- *   node scraper.mjs --discover   # discover ALL S&S subscriptions from management page
+ *   node scraper.mjs                      # discover subscriptions + scrape all
+ *   node scraper.mjs --dry-run            # scrape but don't write to Firebase
+ *   node scraper.mjs --asin B07MZBNXWP    # scrape a single item by ASIN
+ *   node scraper.mjs --discover-only      # only discover subscriptions, don't scrape prices
+ *   node scraper.mjs --skip-discover      # use cached subscriptions from Firebase
  */
 
 import { chromium } from 'playwright';
@@ -27,52 +28,9 @@ const FIREBASE_DB_URL = 'https://amazon-sns-ibendavi-default-rtdb.firebaseio.com
 const SERVICE_ACCOUNT_PATH = resolve(__dirname, 'firebase-service-account.json');
 const BROWSER_PROFILE_DIR = resolve(__dirname, '.browser-profile');
 
-// Item catalog — same IDs as index.html
-const ITEMS = [
-  { id: 13, name: "Presto! Toilet Paper (24 Family Mega Rolls)" },
-  { id: 43, name: "Lavazza Espresso Whole Bean Coffee (2-pack)" },
-  { id: 32, name: "Purina Friskies Variety Pack Cat Food (40 cans)" },
-  { id: 18, name: "Purina Friskies Shreds Cat Food (24 cans)" },
-  { id: 5,  name: "Presto! Paper Towels (12 Huge Rolls)" },
-  { id: 35, name: "Blue Diamond Dark Chocolate Almonds (25 oz)" },
-  { id: 10, name: "Purina Cat Chow Naturals Indoor (13 lb)" },
-  { id: 20, name: "Terrasoul Organic Sunflower Seeds (2 lbs)" },
-  { id: 31, name: "Happy Belly Roasted Almonds (24 oz)" },
-  { id: 22, name: "Blue Diamond Wasabi & Soy Sauce Almonds (16 oz)" },
-  { id: 30, name: "Purina ONE Dog Food Beef & Salmon (27.5 lb)" },
-  { id: 29, name: "Har Bracha Tahini Paste (12 pack)" },
-  { id: 3,  name: "Lavazza Super Crema Whole Bean Coffee (2.2 lb)" },
-  { id: 1,  name: "Mucinex 12 Hour Maximum Strength 1200mg (48 tablets)" },
-  { id: 28, name: "PUREPLUS 9690 Refrigerator Water Filter (4 pack)" },
-  { id: 41, name: "Amazon Basics Liquid Hand Soap Refill (2-pack)" },
-  { id: 33, name: "Downy CALM Mega Dryer Sheets Lavender (130 ct)" },
-  { id: 9,  name: "Hill's Prescription Diet t/d Cat Food (8.5 lb)" },
-  { id: 14, name: "Gillette Clinical Deodorant Cool Wave (3-pack)" },
-  { id: 40, name: "Endangered Species Dark Chocolate 88% (12 bars)" },
-  { id: 26, name: "Triple Strength Fish Oil Omega 3 (180 softgels)" },
-  { id: 47, name: "Brawny Tear-A-Square Paper Towels (12 XL Rolls)" },
-  { id: 21, name: "Energizer Ultimate Lithium 9V (2 pack)" },
-  { id: 27, name: "Vicks VapoShower Plus (12 count)" },
-  { id: 39, name: "GUM Soft-Picks Advanced (90ct, 3-pack)" },
-  { id: 46, name: "Biotrue Contact Solution (10oz, 2-pack)" },
-  { id: 25, name: "Scotch Magic Tape (6 rolls w/ dispensers)" },
-  { id: 45, name: "Gillette Clinical Deodorant Arctic Ice (2.6 oz)" },
-  { id: 36, name: "Dr. Elsey's Ultra Unscented Cat Litter (40 lb)" },
-  { id: 19, name: "Nautica Voyage EDT (6.7 oz)" },
-  { id: 8,  name: "Nescafe Taster's Choice Instant Coffee (2x 7oz)" },
-  { id: 12, name: "Sensodyne Pronamel Whitening Toothpaste (4-pack)" },
-  { id: 7,  name: "Gillette ProGlide Razor Refills (8 count)" },
-  { id: 15, name: "Lysol Disinfectant Wipes (4-pack)" },
-  { id: 6,  name: "Febreze AIR Linen & Sky (6-pack)" },
-  { id: 2,  name: "CeraVe Foaming Facial Cleanser (19 oz)" },
-  { id: 11, name: "Energizer 123 Lithium Batteries (6 pack)" },
-  { id: 38, name: "Oral-B Glide Floss Pro-Health Mint (3-pack)" },
-  { id: 16, name: "O'Keeffe's Working Hands (3.4 oz)" },
-  { id: 23, name: "Carlyle Melatonin 12mg (180 tablets)" },
-  { id: 34, name: "Dove White Peach Body Scrub (15 oz)" },
-  { id: 4,  name: "Energizer 2032 Batteries (2 count)" },
-  { id: 17, name: "Reynolds Quick Cut Plastic Wrap (225 sq ft)" },
-];
+// Amazon login credentials for auto-login
+const AMAZON_EMAIL = 'bendavid.itzhak@gmail.com';
+const AMAZON_PASSWORD = 'GQbgAEC5pm3sW6%UttZmBxw';
 
 // ========== Unit Price Normalization ==========
 
@@ -185,25 +143,9 @@ function initFirebaseAdmin() {
   return getDatabase(app);
 }
 
-async function loadAsins(db) {
-  if (!db) return {};
-  const snap = await db.ref('itemConfig').once('value');
-  const data = snap.val() || {};
-  const asins = {};
-  for (const [id, config] of Object.entries(data)) {
-    if (config.asin) asins[id] = config.asin;
-  }
-  return asins;
-}
-
-async function saveAsin(db, itemId, asin) {
+async function savePriceData(db, asinOrId, data) {
   if (!db) return;
-  await db.ref(`itemConfig/${itemId}/asin`).set(asin);
-}
-
-async function savePriceData(db, itemId, data) {
-  if (!db) return;
-  await db.ref(`priceData/${itemId}`).set(data);
+  await db.ref(`priceData/${asinOrId}`).set(data);
 }
 
 async function appendPriceHistory(db, itemId, data) {
@@ -574,114 +516,166 @@ async function scrapeAlternatives(page, itemName, currentAsin, currentPrice, max
 
 // ========== Discover All Subscriptions ==========
 
+async function handleLogin(page) {
+  if (!page.url().includes('/ap/signin') && !page.url().includes('/ap/mfa')) return true;
+
+  log('  Session expired, logging in...');
+
+  // Fill email if needed
+  const emailField = await page.$('input[name="email"], #ap_email');
+  if (emailField) {
+    await emailField.fill(AMAZON_EMAIL);
+    const continueBtn = await page.$('#continue, input[type="submit"]');
+    if (continueBtn) {
+      await continueBtn.click();
+      await randomDelay(2000, 3000);
+    }
+  }
+
+  // Fill password
+  const pwField = await page.$('input[name="password"], #ap_password');
+  if (pwField) {
+    await pwField.fill(AMAZON_PASSWORD);
+    const keepSigned = await page.$('input[name="rememberMe"]');
+    if (keepSigned) await keepSigned.check();
+    await page.click('#signInSubmit, input[type="submit"]');
+    await randomDelay(4000, 6000);
+  }
+
+  // Check for MFA
+  if (page.url().includes('/ap/mfa') || page.url().includes('/ap/cvf')) {
+    log('  MFA/verification required. Cannot proceed automatically.');
+    await page.screenshot({ path: 'sns-mfa-needed.png' });
+    return false;
+  }
+
+  log('  Login successful');
+  return true;
+}
+
 async function discoverSubscriptions(browser, db) {
   log('=== Discovering ALL S&S Subscriptions ===');
   const page = await browser.newPage();
 
-  // Navigate to S&S management page
   const url = 'https://www.amazon.com/gp/subscribe-and-save/manager/viewsubscriptions';
-  log(`  Loading S&S management page...`);
+  log('  Loading S&S management page...');
   await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+  await randomDelay(4000, 6000);
+
+  // Handle login if session expired
+  if (page.url().includes('/ap/signin') || page.url().includes('/ap/mfa')) {
+    const loggedIn = await handleLogin(page);
+    if (!loggedIn) {
+      await page.close();
+      return null;
+    }
+    // Re-navigate after login
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await randomDelay(4000, 6000);
+  }
+
+  log('  Page loaded: ' + page.url());
+
+  // Wait for content to render (JS-heavy page)
   await randomDelay(3000, 5000);
 
-  // Check if logged in (page might redirect to login)
-  const currentUrl = page.url();
-  if (currentUrl.includes('/ap/signin') || currentUrl.includes('/ap/mfa')) {
-    log('  ERROR: Not logged in. Please log into Amazon in the browser profile first.');
-    await page.close();
-    return null;
-  }
-
-  // Scroll to load all subscriptions (lazy loading)
-  let lastHeight = 0;
-  for (let i = 0; i < 20; i++) {
+  // Scroll to load all lazy content
+  for (let i = 0; i < 15; i++) {
     await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-    await randomDelay(1500, 2500);
-    const newHeight = await page.evaluate(() => document.body.scrollHeight);
-    if (newHeight === lastHeight) break;
-    lastHeight = newHeight;
+    await randomDelay(1000, 2000);
   }
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await randomDelay(1000, 1500);
 
-  // Extract subscription data from the management page
+  // Extract subscriptions using .snsBasePrice[data-asin] elements
+  // Each one represents an active S&S subscription on the management page
   const subscriptions = await page.evaluate(() => {
+    const basePrices = document.querySelectorAll('.snsBasePrice[data-asin]');
     const subs = [];
 
-    // S&S management page shows subscription cards/rows
-    // Each subscription has: product name, ASIN (in links), price, frequency, status
-    const cards = document.querySelectorAll(
-      '.subscription-card, [data-subscription-id], .subs-item, ' +
-      'div[class*="subscription"], tr[class*="subscription"], ' +
-      '.a-section[data-asin], [id*="subscription"]'
-    );
+    for (const bp of basePrices) {
+      const asin = bp.dataset.asin;
+      if (!asin || asin.length < 5) continue;
 
-    // Strategy 1: subscription cards with data attributes
-    cards.forEach(card => {
-      const asin = card.getAttribute('data-asin') ||
-        card.querySelector('a[href*="/dp/"]')?.href?.match(/\/dp\/([A-Z0-9]{10})/)?.[1] || '';
-      const nameEl = card.querySelector('.a-text-bold, .subscription-title, [class*="product-name"], .a-link-normal');
-      const name = nameEl?.textContent?.trim() || '';
-      const priceEl = card.querySelector('.a-price .a-offscreen, [class*="price"]');
-      const price = priceEl?.textContent?.trim() || '';
-      const freqEl = card.querySelector('[class*="frequency"], [class*="delivery"]');
-      const freq = freqEl?.textContent?.trim() || '';
-      const imgEl = card.querySelector('img[src*="images-amazon"]');
-      const image = imgEl?.src || '';
+      // Walk up 2 levels to the card container
+      let card = bp.parentElement?.parentElement;
+      if (!card) card = bp.parentElement || bp;
 
-      if (asin && name) {
-        subs.push({ asin, name: name.substring(0, 120), price, freq, image });
+      // If the container is too small, walk up more
+      while (card && card.children.length < 3 && card.parentElement) {
+        card = card.parentElement;
       }
-    });
 
-    // Strategy 2: look for product links with /dp/ pattern across the page
-    if (subs.length === 0) {
-      const links = document.querySelectorAll('a[href*="/dp/"]');
-      const seen = new Set();
-      links.forEach(link => {
-        const match = link.href.match(/\/dp\/([A-Z0-9]{10})/);
-        if (!match || seen.has(match[1])) return;
-        seen.add(match[1]);
-        const name = link.textContent?.trim() ||
-          link.closest('tr, .a-section, div')?.querySelector('img')?.alt || '';
-        if (name && name.length > 5) {
-          const row = link.closest('tr, .a-section, div[class*="subscription"]');
-          const price = row?.querySelector('.a-price .a-offscreen, [class*="price"]')?.textContent?.trim() || '';
-          const image = row?.querySelector('img[src*="images-amazon"]')?.src || '';
-          subs.push({ asin: match[1], name: name.substring(0, 120), price, image, freq: '' });
-        }
-      });
+      // Product name from img alt text (most reliable on this page)
+      const img = card.querySelector('img[alt]');
+      const name = img?.alt || '';
+
+      // Price from .a-offscreen inside snsBasePrice
+      const offscreen = bp.querySelector('.a-offscreen');
+      const priceRaw = offscreen?.textContent?.trim() || '';
+      const priceMatch = priceRaw.match(/\$[\d.]+/);
+      const price = priceMatch ? priceMatch[0] : '';
+
+      // Frequency from the dropdown
+      const freqSelect = card.querySelector('select.a-native-dropdown');
+      const freqValue = freqSelect?.value || ''; // e.g. "4M|sns"
+      const freqPrompt = card.querySelector('.a-dropdown-prompt');
+      const freqText = freqPrompt?.textContent?.trim() || ''; // e.g. "4 months"
+
+      // Product image URL
+      const imgSrc = img?.src || '';
+
+      // Purchase count badge (e.g. "Purchased 27 times")
+      const badgeEl = card.querySelector('[class*="badge"]');
+      const badge = badgeEl?.textContent?.trim() || '';
+      const purchaseMatch = badge.match(/Purchased\s+(\d+)\s+time/);
+      const purchaseCount = purchaseMatch ? parseInt(purchaseMatch[1]) : 0;
+
+      if (name && name.length > 3) {
+        subs.push({
+          asin,
+          name: name.substring(0, 200),
+          price,
+          freq: freqText,
+          freqValue,
+          image: imgSrc,
+          purchaseCount,
+        });
+      }
     }
 
     return subs;
   });
 
-  log(`  Found ${subscriptions.length} subscriptions on management page`);
+  log(`  Found ${subscriptions.length} active subscriptions`);
 
-  if (subscriptions.length > 0 && db) {
+  if (subscriptions.length > 0) {
     // Save to Firebase subscriptions/ node
-    const subsData = {};
-    for (const sub of subscriptions) {
-      // Use ASIN as key (stable across deliveries)
-      subsData[sub.asin] = {
-        name: sub.name,
-        asin: sub.asin,
-        price: sub.price,
-        freq: sub.freq,
-        image: sub.image,
-        lastSeen: new Date().toISOString(),
-      };
+    if (db) {
+      const subsData = {};
+      for (const sub of subscriptions) {
+        subsData[sub.asin] = {
+          name: sub.name,
+          asin: sub.asin,
+          price: sub.price,
+          freq: sub.freq,
+          freqValue: sub.freqValue,
+          image: sub.image,
+          purchaseCount: sub.purchaseCount,
+          lastSeen: new Date().toISOString(),
+        };
+      }
+      await db.ref('subscriptions').set(subsData);
+      log(`  Saved ${subscriptions.length} subscriptions to Firebase`);
     }
-    await db.ref('subscriptions').set(subsData);
-    log(`  Saved ${subscriptions.length} subscriptions to Firebase`);
 
-    // Also log what we found
     subscriptions.forEach((sub, i) => {
-      log(`  ${i + 1}. ${sub.name} (${sub.asin}) ${sub.price}`);
+      log(`  ${i + 1}. ${sub.name.substring(0, 60)} (${sub.asin}) ${sub.price} — ${sub.freq}`);
     });
-  } else if (subscriptions.length === 0) {
-    log('  WARNING: No subscriptions found. The page structure may have changed.');
-    log('  Taking screenshot for debugging...');
+  } else {
+    log('  WARNING: No subscriptions found. Page structure may have changed.');
     await page.screenshot({ path: 'sns-management-debug.png', fullPage: true });
-    log('  Screenshot saved to sns-management-debug.png');
+    log('  Screenshot saved for debugging');
   }
 
   await page.close();
@@ -691,9 +685,9 @@ async function discoverSubscriptions(browser, db) {
 async function main() {
   const args = process.argv.slice(2);
   const dryRun = args.includes('--dry-run');
-  const discover = args.includes('--discover');
-  const singleItemArg = args.indexOf('--item');
-  const singleItemId = singleItemArg >= 0 ? parseInt(args[singleItemArg + 1]) : null;
+  const discoverOnly = args.includes('--discover-only');
+  const skipDiscover = args.includes('--skip-discover');
+  const singleAsin = args.find((a, i) => args[i - 1] === '--asin') || null;
 
   log('=== Amazon S&S Price Scraper ===');
   if (dryRun) log('DRY RUN — will not write to Firebase');
@@ -701,55 +695,7 @@ async function main() {
   // Init Firebase
   const db = dryRun ? null : initFirebaseAdmin();
 
-  // --discover mode: scrape S&S management page for all subscriptions
-  if (discover) {
-    const browser = await chromium.launchPersistentContext(BROWSER_PROFILE_DIR, {
-      headless: true,
-      viewport: { width: 1366, height: 768 },
-      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-      locale: 'en-US',
-    });
-    await discoverSubscriptions(browser, db);
-    await browser.close();
-    return;
-  }
-
-  const asins = await loadAsins(db);
-  log(`Loaded ${Object.keys(asins).length} stored ASINs`);
-
-  // Load items: merge hardcoded ITEMS with Firebase subscriptions
-  let itemsToScrape;
-  if (singleItemId) {
-    itemsToScrape = ITEMS.filter(i => i.id === singleItemId);
-  } else {
-    // Start with hardcoded items
-    itemsToScrape = [...ITEMS];
-    // Merge in Firebase subscriptions not already in ITEMS
-    if (db) {
-      const snap = await db.ref('subscriptions').once('value');
-      const subs = snap.val() || {};
-      const existingAsins = new Set(Object.values(asins));
-      const existingIds = new Set(ITEMS.map(i => i.id));
-      let nextId = Math.max(...ITEMS.map(i => i.id)) + 1;
-      for (const [asin, sub] of Object.entries(subs)) {
-        if (!existingAsins.has(asin)) {
-          const newItem = { id: nextId++, name: sub.name };
-          itemsToScrape.push(newItem);
-          asins[newItem.id] = asin;
-          log(`  Added subscription from Firebase: ${sub.name} (${asin})`);
-        }
-      }
-    }
-  }
-
-  if (itemsToScrape.length === 0) {
-    log('No items to scrape.');
-    return;
-  }
-
-  log(`Scraping ${itemsToScrape.length} items...`);
-
-  // Launch browser with persistent profile
+  // Launch browser with persistent profile (logged-in session)
   const browser = await chromium.launchPersistentContext(BROWSER_PROFILE_DIR, {
     headless: true,
     viewport: { width: 1366, height: 768 },
@@ -757,10 +703,49 @@ async function main() {
     locale: 'en-US',
   });
 
+  // Step 1: Discover subscriptions from S&S management page
+  let itemsToScrape = [];
+
+  if (singleAsin) {
+    // Scrape a single item by ASIN
+    itemsToScrape = [{ asin: singleAsin, name: singleAsin }];
+    log(`Scraping single ASIN: ${singleAsin}`);
+  } else if (skipDiscover) {
+    // Load from Firebase subscriptions/ node
+    if (db) {
+      const snap = await db.ref('subscriptions').once('value');
+      const subs = snap.val() || {};
+      itemsToScrape = Object.values(subs).map(s => ({ asin: s.asin, name: s.name }));
+      log(`Loaded ${itemsToScrape.length} subscriptions from Firebase`);
+    }
+  } else {
+    // Always discover fresh from Amazon
+    const discovered = await discoverSubscriptions(browser, db);
+    if (!discovered || discovered.length === 0) {
+      log('ERROR: Discovery failed. Run with --skip-discover to use cached subscriptions.');
+      await browser.close();
+      process.exit(1);
+    }
+    itemsToScrape = discovered.map(s => ({ asin: s.asin, name: s.name }));
+  }
+
+  if (discoverOnly) {
+    log('Discovery complete (--discover-only). Exiting.');
+    await browser.close();
+    process.exit(0);
+  }
+
+  if (itemsToScrape.length === 0) {
+    log('No items to scrape.');
+    await browser.close();
+    return;
+  }
+
+  log(`\nScraping ${itemsToScrape.length} items...`);
+
   const page = await browser.newPage();
 
   // Incognito context for checking "new subscriber" prices
-  // (not logged in = shows what a new subscriber would pay)
   const incognitoBrowser = await chromium.launch({ headless: true });
   const incognitoCtx = await incognitoBrowser.newContext({
     viewport: { width: 1366, height: 768 },
@@ -774,34 +759,16 @@ async function main() {
 
   for (const item of itemsToScrape) {
     try {
-      log(`\n--- Item ${item.id}: ${item.name} ---`);
-
-      // Get or discover ASIN
-      let asin = asins[item.id];
-      if (!asin) {
-        asin = await extractAsinFromSearch(page, item.name);
-        if (asin) {
-          log(`  Discovered ASIN: ${asin}`);
-          asins[item.id] = asin;
-          await saveAsin(db, item.id, asin);
-        } else {
-          log(`  ERROR: Could not find ASIN for ${item.name}`);
-          errorCount++;
-          await randomDelay(5000, 10000);
-          continue;
-        }
-      } else {
-        log(`  Using stored ASIN: ${asin}`);
-      }
+      log(`\n--- ${item.asin}: ${item.name.substring(0, 60)} ---`);
 
       // Scrape product page
-      const priceResult = await scrapeProductPage(page, asin);
+      const priceResult = await scrapeProductPage(page, item.asin);
       log(`  S&S: $${priceResult.snsPrice || '?'} | One-time: $${priceResult.oneTimePrice || '?'} | Saves: ${priceResult.savingsPct || 0}%`);
       if (priceResult.coupons.length) log(`  Coupons: ${priceResult.coupons.join(', ')}`);
 
       // Scrape alternatives
       await randomDelay(3000, 8000);
-      const alternatives = await scrapeAlternatives(page, item.name, asin, priceResult.snsPrice || priceResult.oneTimePrice);
+      const alternatives = await scrapeAlternatives(page, item.name, item.asin, priceResult.snsPrice || priceResult.oneTimePrice);
       log(`  Found ${alternatives.length} alternatives`);
 
       // Compute normalized unit price
@@ -811,7 +778,7 @@ async function main() {
         log(`  Computed unit price: ${computed.formatted} (${computed.count} ${computed.unit}s)`);
       }
 
-      // Compute unit prices for alternatives too
+      // Compute unit prices for alternatives
       for (const alt of alternatives) {
         const altPrice = parseFloat((alt.price || '').replace('$', ''));
         const altComputed = computeUnitPrice(alt.name, altPrice);
@@ -822,22 +789,20 @@ async function main() {
         }
       }
 
-      // Re-evaluate "recommended" based on unit price if available
+      // Re-evaluate "recommended" based on unit price
       const altsWithUnit = alternatives.filter(a => a.computedUnitPriceNum);
       if (altsWithUnit.length > 0 && computed) {
-        // Clear old recommendations
         alternatives.forEach(a => delete a.recommended);
-        // Find the cheapest by unit price (including current item)
         const cheapestAlt = altsWithUnit
           .filter(a => a.computedUnitPriceNum < computed.unitPrice)
           .sort((a, b) => a.computedUnitPriceNum - b.computedUnitPriceNum)[0];
         if (cheapestAlt) cheapestAlt.recommended = true;
       }
 
-      // Check "new subscriber" price in incognito (not logged in)
+      // Check "new subscriber" price in incognito
       let resubPrice = null;
       try {
-        const incognitoResult = await scrapeProductPage(incognitoPage, asin);
+        const incognitoResult = await scrapeProductPage(incognitoPage, item.asin);
         resubPrice = incognitoResult.snsPrice;
         if (resubPrice && priceResult.snsPrice) {
           const diff = priceResult.snsPrice - resubPrice;
@@ -853,7 +818,7 @@ async function main() {
         log(`  Could not check resub price: ${err.message}`);
       }
 
-      // Build data object
+      // Build data object — keyed by ASIN
       const data = {
         snsPrice: priceResult.snsPrice,
         oneTimePrice: priceResult.oneTimePrice,
@@ -870,11 +835,11 @@ async function main() {
         lastChecked: new Date().toISOString(),
       };
 
-      // Save to Firebase
+      // Save to Firebase using ASIN as key
       if (!dryRun) {
-        await savePriceData(db, item.id, data);
-        await appendPriceHistory(db, item.id, data);
-        await checkPriceAlerts(db, item.id, item.name, data);
+        await savePriceData(db, item.asin, data);
+        await appendPriceHistory(db, item.asin, data);
+        await checkPriceAlerts(db, item.asin, item.name, data);
         log(`  Saved to Firebase (price data + history)`);
       } else {
         log(`  [dry-run] Would save: ${JSON.stringify(data).slice(0, 200)}...`);
@@ -890,7 +855,7 @@ async function main() {
       }
 
     } catch (err) {
-      log(`  ERROR scraping item ${item.id}: ${err.message}`);
+      log(`  ERROR scraping ${item.asin}: ${err.message}`);
       errorCount++;
       await randomDelay(10000, 20000);
     }
