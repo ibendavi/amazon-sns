@@ -9,6 +9,7 @@
  *   node scraper.mjs              # scrape all items
  *   node scraper.mjs --dry-run    # scrape but don't write to Firebase
  *   node scraper.mjs --item 13    # scrape a single item by ID
+ *   node scraper.mjs --discover   # discover ALL S&S subscriptions from management page
  */
 
 import { chromium } from 'playwright';
@@ -571,9 +572,126 @@ async function scrapeAlternatives(page, itemName, currentAsin, currentPrice, max
 
 // ========== Main ==========
 
+// ========== Discover All Subscriptions ==========
+
+async function discoverSubscriptions(browser, db) {
+  log('=== Discovering ALL S&S Subscriptions ===');
+  const page = await browser.newPage();
+
+  // Navigate to S&S management page
+  const url = 'https://www.amazon.com/gp/subscribe-and-save/manager/viewsubscriptions';
+  log(`  Loading S&S management page...`);
+  await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+  await randomDelay(3000, 5000);
+
+  // Check if logged in (page might redirect to login)
+  const currentUrl = page.url();
+  if (currentUrl.includes('/ap/signin') || currentUrl.includes('/ap/mfa')) {
+    log('  ERROR: Not logged in. Please log into Amazon in the browser profile first.');
+    await page.close();
+    return null;
+  }
+
+  // Scroll to load all subscriptions (lazy loading)
+  let lastHeight = 0;
+  for (let i = 0; i < 20; i++) {
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+    await randomDelay(1500, 2500);
+    const newHeight = await page.evaluate(() => document.body.scrollHeight);
+    if (newHeight === lastHeight) break;
+    lastHeight = newHeight;
+  }
+
+  // Extract subscription data from the management page
+  const subscriptions = await page.evaluate(() => {
+    const subs = [];
+
+    // S&S management page shows subscription cards/rows
+    // Each subscription has: product name, ASIN (in links), price, frequency, status
+    const cards = document.querySelectorAll(
+      '.subscription-card, [data-subscription-id], .subs-item, ' +
+      'div[class*="subscription"], tr[class*="subscription"], ' +
+      '.a-section[data-asin], [id*="subscription"]'
+    );
+
+    // Strategy 1: subscription cards with data attributes
+    cards.forEach(card => {
+      const asin = card.getAttribute('data-asin') ||
+        card.querySelector('a[href*="/dp/"]')?.href?.match(/\/dp\/([A-Z0-9]{10})/)?.[1] || '';
+      const nameEl = card.querySelector('.a-text-bold, .subscription-title, [class*="product-name"], .a-link-normal');
+      const name = nameEl?.textContent?.trim() || '';
+      const priceEl = card.querySelector('.a-price .a-offscreen, [class*="price"]');
+      const price = priceEl?.textContent?.trim() || '';
+      const freqEl = card.querySelector('[class*="frequency"], [class*="delivery"]');
+      const freq = freqEl?.textContent?.trim() || '';
+      const imgEl = card.querySelector('img[src*="images-amazon"]');
+      const image = imgEl?.src || '';
+
+      if (asin && name) {
+        subs.push({ asin, name: name.substring(0, 120), price, freq, image });
+      }
+    });
+
+    // Strategy 2: look for product links with /dp/ pattern across the page
+    if (subs.length === 0) {
+      const links = document.querySelectorAll('a[href*="/dp/"]');
+      const seen = new Set();
+      links.forEach(link => {
+        const match = link.href.match(/\/dp\/([A-Z0-9]{10})/);
+        if (!match || seen.has(match[1])) return;
+        seen.add(match[1]);
+        const name = link.textContent?.trim() ||
+          link.closest('tr, .a-section, div')?.querySelector('img')?.alt || '';
+        if (name && name.length > 5) {
+          const row = link.closest('tr, .a-section, div[class*="subscription"]');
+          const price = row?.querySelector('.a-price .a-offscreen, [class*="price"]')?.textContent?.trim() || '';
+          const image = row?.querySelector('img[src*="images-amazon"]')?.src || '';
+          subs.push({ asin: match[1], name: name.substring(0, 120), price, image, freq: '' });
+        }
+      });
+    }
+
+    return subs;
+  });
+
+  log(`  Found ${subscriptions.length} subscriptions on management page`);
+
+  if (subscriptions.length > 0 && db) {
+    // Save to Firebase subscriptions/ node
+    const subsData = {};
+    for (const sub of subscriptions) {
+      // Use ASIN as key (stable across deliveries)
+      subsData[sub.asin] = {
+        name: sub.name,
+        asin: sub.asin,
+        price: sub.price,
+        freq: sub.freq,
+        image: sub.image,
+        lastSeen: new Date().toISOString(),
+      };
+    }
+    await db.ref('subscriptions').set(subsData);
+    log(`  Saved ${subscriptions.length} subscriptions to Firebase`);
+
+    // Also log what we found
+    subscriptions.forEach((sub, i) => {
+      log(`  ${i + 1}. ${sub.name} (${sub.asin}) ${sub.price}`);
+    });
+  } else if (subscriptions.length === 0) {
+    log('  WARNING: No subscriptions found. The page structure may have changed.');
+    log('  Taking screenshot for debugging...');
+    await page.screenshot({ path: 'sns-management-debug.png', fullPage: true });
+    log('  Screenshot saved to sns-management-debug.png');
+  }
+
+  await page.close();
+  return subscriptions;
+}
+
 async function main() {
   const args = process.argv.slice(2);
   const dryRun = args.includes('--dry-run');
+  const discover = args.includes('--discover');
   const singleItemArg = args.indexOf('--item');
   const singleItemId = singleItemArg >= 0 ? parseInt(args[singleItemArg + 1]) : null;
 
@@ -582,13 +700,47 @@ async function main() {
 
   // Init Firebase
   const db = dryRun ? null : initFirebaseAdmin();
+
+  // --discover mode: scrape S&S management page for all subscriptions
+  if (discover) {
+    const browser = await chromium.launchPersistentContext(BROWSER_PROFILE_DIR, {
+      headless: true,
+      viewport: { width: 1366, height: 768 },
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+      locale: 'en-US',
+    });
+    await discoverSubscriptions(browser, db);
+    await browser.close();
+    return;
+  }
+
   const asins = await loadAsins(db);
   log(`Loaded ${Object.keys(asins).length} stored ASINs`);
 
-  // Filter items if --item specified
-  const itemsToScrape = singleItemId
-    ? ITEMS.filter(i => i.id === singleItemId)
-    : ITEMS;
+  // Load items: merge hardcoded ITEMS with Firebase subscriptions
+  let itemsToScrape;
+  if (singleItemId) {
+    itemsToScrape = ITEMS.filter(i => i.id === singleItemId);
+  } else {
+    // Start with hardcoded items
+    itemsToScrape = [...ITEMS];
+    // Merge in Firebase subscriptions not already in ITEMS
+    if (db) {
+      const snap = await db.ref('subscriptions').once('value');
+      const subs = snap.val() || {};
+      const existingAsins = new Set(Object.values(asins));
+      const existingIds = new Set(ITEMS.map(i => i.id));
+      let nextId = Math.max(...ITEMS.map(i => i.id)) + 1;
+      for (const [asin, sub] of Object.entries(subs)) {
+        if (!existingAsins.has(asin)) {
+          const newItem = { id: nextId++, name: sub.name };
+          itemsToScrape.push(newItem);
+          asins[newItem.id] = asin;
+          log(`  Added subscription from Firebase: ${sub.name} (${asin})`);
+        }
+      }
+    }
+  }
 
   if (itemsToScrape.length === 0) {
     log('No items to scrape.');

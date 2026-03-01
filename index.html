@@ -192,8 +192,8 @@
     <h1><span style="display:inline-block;transform:rotate(180deg);margin-right:2px">🙂</span> Amazon Subscribe & Save</h1>
     <span class="sync-dot" id="syncDot" title="Offline"></span>
   </div>
-  <div class="subtitle">March 10, 2026 Delivery &mdash; <span id="itemCount">44</span> items</div>
-  <div class="deadline">Last day to edit: Wednesday, March 4</div>
+  <div class="subtitle"><span id="itemCount">44</span> subscriptions &mdash; sorted by predicted need</div>
+  <div class="deadline">Next delivery: March 10, 2026 &mdash; Last day to edit: Wednesday, March 4</div>
 
   <!-- Spending Dashboard -->
   <div class="dashboard" id="dashboard">
@@ -537,6 +537,41 @@
               if (config.asin) itemAsins[id] = config.asin;
             }
             renderItems(currentFilter());
+          });
+
+          // All subscriptions — merge items not in hardcoded list
+          db.ref('subscriptions').on('value', snapshot => {
+            const subs = snapshot.val();
+            if (!subs) return;
+            const existingAsins = new Set();
+            // Build ASIN set from hardcoded items
+            for (const [id, asin] of Object.entries(itemAsins)) {
+              existingAsins.add(asin);
+            }
+            let nextId = Math.max(...items.map(i => i.id)) + 1;
+            let added = 0;
+            for (const [asin, sub] of Object.entries(subs)) {
+              if (existingAsins.has(asin)) continue;
+              // New subscription not in hardcoded list — add it
+              const newItem = {
+                id: nextId++,
+                name: sub.name || asin,
+                price: sub.price || '',
+                qty: 1,
+                freq: sub.freq || '',
+                category: 'other',
+                alternatives: [],
+                _fromFirebase: true,
+              };
+              items.push(newItem);
+              itemAsins[newItem.id] = asin;
+              existingAsins.add(asin);
+              added++;
+            }
+            if (added > 0) {
+              document.getElementById('itemCount').textContent = items.length;
+              renderAll();
+            }
           });
 
           // Alt preferences sync
@@ -1114,7 +1149,7 @@
     }
 
     function urgencyGroupLabel(tier) {
-      return { 'due-soon': 'Order Now', 'maybe': 'Review', 'stock-ok': 'Skip' }[tier] || 'Other';
+      return { 'due-soon': 'Likely Needed', 'maybe': 'Maybe Needed', 'stock-ok': 'Not Yet' }[tier] || 'Other';
     }
 
     function renderItems(filter = '') {
