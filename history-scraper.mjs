@@ -10,7 +10,6 @@
  *   node history-scraper.mjs              # scrape all order history (past 1 year)
  *   node history-scraper.mjs --dry-run    # scrape but don't write to Firebase
  *   node history-scraper.mjs --months 6   # only go back 6 months
- *   node history-scraper.mjs --login      # open browser for manual Amazon login first
  */
 
 import { chromium } from 'playwright';
@@ -27,7 +26,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const FIREBASE_DB_URL = 'https://amazon-sns-ibendavi-default-rtdb.firebaseio.com';
 const SERVICE_ACCOUNT_PATH = resolve(__dirname, 'firebase-service-account.json');
 const BROWSER_PROFILE_DIR = resolve(__dirname, '.browser-profile');
-const ORDER_HISTORY_URL = 'https://www.amazon.com/gp/your-account/order-history';
+const ORDER_HISTORY_URL = 'https://www.amazon.com/your-orders/orders';
 
 // S&S items — must match scraper.mjs / index.html IDs
 const ITEMS = [
@@ -167,28 +166,29 @@ async function loadAsins(db) {
  * for manual login. Otherwise, relies on cookies in the persistent profile.
  */
 async function ensureLoggedIn(page) {
-  await page.goto('https://www.amazon.com/gp/css/homepage.html', {
+  await page.goto(ORDER_HISTORY_URL, {
     waitUntil: 'domcontentloaded', timeout: 30000
   });
   await randomDelay(2000, 3000);
 
-  // Check if we're on a sign-in page
+  // If we got redirected to sign-in, we're not logged in
+  const url = page.url();
+  if (url.includes('/ap/signin') || url.includes('/ap/mfa')) {
+    log('Not logged in — redirected to sign-in page.');
+    return false;
+  }
+
+  // Also check for sign-in form elements
   const isSignIn = await page.evaluate(() => {
     return !!document.querySelector('#ap_email, #ap_password, .a-form-label[for="ap_email"]');
   });
 
   if (isSignIn) {
-    log('Not logged in — need to authenticate.');
+    log('Not logged in — sign-in form detected.');
     return false;
   }
 
-  // Check for "Hello, Sign in" text which means not logged in
-  const signedIn = await page.evaluate(() => {
-    const el = document.querySelector('#nav-link-accountList-nav-line-1');
-    return el ? !el.textContent.includes('Sign in') : true;
-  });
-
-  return signedIn;
+  return true;
 }
 
 /**
@@ -378,16 +378,21 @@ async function scrapeOrdersStructured(page, monthsBack) {
     log(`Scraping orders from ${year}...`);
 
     // Navigate to order history for this year
-    const url = `${ORDER_HISTORY_URL}?orderFilter=year-${year}`;
+    const url = `${ORDER_HISTORY_URL}?timeFilter=year-${year}`;
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
     await randomDelay(3000, 5000);
 
     // Check if we need to log in
+    const pageUrl = page.url();
+    if (pageUrl.includes('/ap/signin') || pageUrl.includes('/ap/mfa')) {
+      log('Session expired — login required.');
+      return { orders: allOrders, needsLogin: true };
+    }
     const isSignIn = await page.evaluate(() => {
       return !!document.querySelector('#ap_email, #ap_password');
     });
     if (isSignIn) {
-      log('Session expired — login required.');
+      log('Session expired — login form detected.');
       return { orders: allOrders, needsLogin: true };
     }
 
@@ -400,6 +405,34 @@ async function scrapeOrdersStructured(page, monthsBack) {
       // Scrape current page
       const pageOrders = await scrapeOrderPageNew(page);
       log(`  Found ${pageOrders.length} orders with ${pageOrders.reduce((s, o) => s + o.items.length, 0)} items`);
+
+      // Debug: if first page has 0 orders, dump page info
+      if (pageNum === 1 && pageOrders.length === 0) {
+        const debugInfo = await page.evaluate(() => {
+          const info = {};
+          info.url = location.href;
+          info.title = document.title;
+          // Count elements with various selectors
+          info.aBoxGroups = document.querySelectorAll('.a-box-group').length;
+          info.aBoxes = document.querySelectorAll('.a-box').length;
+          info.productLinks = document.querySelectorAll('a[href*="/dp/"], a[href*="/gp/product/"]').length;
+          // Get all unique class names containing 'order'
+          const orderClasses = new Set();
+          document.querySelectorAll('*').forEach(el => {
+            for (const cls of el.classList) {
+              if (cls.toLowerCase().includes('order')) orderClasses.add(cls);
+            }
+          });
+          info.orderClasses = [...orderClasses];
+          info.bodySnippet = document.body?.innerText?.slice(0, 1000);
+          return info;
+        });
+        log(`  DEBUG: URL=${debugInfo.url}`);
+        log(`  DEBUG: Title=${debugInfo.title}`);
+        log(`  DEBUG: .a-box-group=${debugInfo.aBoxGroups}, .a-box=${debugInfo.aBoxes}, productLinks=${debugInfo.productLinks}`);
+        log(`  DEBUG: Order classes: ${debugInfo.orderClasses.join(', ')}`);
+        log(`  DEBUG: Body snippet: ${debugInfo.bodySnippet?.slice(0, 500)}`);
+      }
 
       for (const order of pageOrders) {
         // Check if order is within our time range
@@ -588,9 +621,17 @@ function analyzeOrders(allOrders, knownAsins) {
   // Calculate consumption stats per item
   const results = {};
   for (const item of ITEMS) {
-    const orders = (itemOrders[item.id] || [])
-      .filter(o => o.date) // only orders with valid dates
-      .sort((a, b) => new Date(a.date) - new Date(b.date));
+    // Deduplicate orders by orderId (same order can appear on multiple year pages)
+    const rawOrders = (itemOrders[item.id] || []).filter(o => o.date);
+    const seen = new Set();
+    const orders = [];
+    for (const o of rawOrders) {
+      const key = `${o.orderId}|${o.date}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      orders.push(o);
+    }
+    orders.sort((a, b) => new Date(a.date) - new Date(b.date));
 
     if (orders.length === 0) continue;
 
@@ -687,7 +728,6 @@ function analyzeOrders(allOrders, knownAsins) {
 async function main() {
   const args = process.argv.slice(2);
   const dryRun = args.includes('--dry-run');
-  const loginMode = args.includes('--login');
   const monthsIdx = args.indexOf('--months');
   const monthsBack = monthsIdx >= 0 ? parseInt(args[monthsIdx + 1]) : 12;
 
@@ -697,65 +737,85 @@ async function main() {
 
   // Init Firebase
   const db = dryRun ? null : initFirebaseAdmin();
-  const knownAsins = await loadAsins(db);
+  const knownAsins = db ? await loadAsins(db) : {};
   log(`Loaded ${Object.keys(knownAsins).length} known ASINs`);
 
-  // Launch browser
-  const headless = !loginMode;
-  log(`Launching browser (${headless ? 'headless' : 'visible'})...`);
+  // Launch with real Chrome to avoid bot detection on login pages
+  log('Launching Chrome browser...');
+  log('IMPORTANT: Close ALL Chrome windows first!');
 
   const browser = await chromium.launchPersistentContext(BROWSER_PROFILE_DIR, {
-    headless,
-    viewport: { width: 1366, height: 768 },
-    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-    locale: 'en-US',
+    headless: false,
+    channel: 'chrome',
+    viewport: null,
+    args: [
+      '--disable-blink-features=AutomationControlled',
+      '--start-maximized',
+    ],
+    ignoreDefaultArgs: ['--enable-automation'],
   });
 
-  const page = await browser.newPage();
+  const page = browser.pages()[0] || await browser.newPage();
+
+  // Suppress automation detection
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+    if (window.chrome) {
+      window.chrome.runtime = window.chrome.runtime || {};
+    }
+  });
 
   try {
-    // Check login status
+    // Check login status by going directly to order history
     const loggedIn = await ensureLoggedIn(page);
 
     if (!loggedIn) {
-      if (loginMode) {
-        log('Please log in manually in the browser window...');
-        log('Waiting up to 120 seconds for login...');
+      log('');
+      log('========================================');
+      log('  Please log in to Amazon in the browser window.');
+      log('  After login, you should see your order history.');
+      log('  Waiting up to 5 minutes...');
+      log('========================================');
 
-        // Wait for navigation away from sign-in page
-        await page.waitForURL(url => !url.toString().includes('/ap/signin'), { timeout: 120000 }).catch(() => {});
-        await randomDelay(3000, 5000);
-
-        const nowLoggedIn = await ensureLoggedIn(page);
-        if (!nowLoggedIn) {
-          log('ERROR: Still not logged in. Please run with --login and complete sign-in.');
-          await browser.close();
-          process.exit(1);
-        }
-        log('Login successful!');
-      } else {
-        // Try automated login
-        const email = process.env.AMAZON_EMAIL || 'bendavid.itzhak@gmail.com';
-        const password = process.env.AMAZON_PASSWORD;
-
-        if (password) {
-          await doLogin(page, email, password);
-          await randomDelay(3000, 5000);
-
-          const nowLoggedIn = await ensureLoggedIn(page);
-          if (!nowLoggedIn) {
-            log('ERROR: Automated login failed. Run with --login for manual sign-in.');
-            await browser.close();
-            process.exit(1);
+      // Wait for user to complete login — check for actual order content on the page
+      let loginDetected = false;
+      for (let i = 0; i < 100; i++) {
+        await new Promise(r => setTimeout(r, 3000));
+        try {
+          const url = page.url();
+          // Must be on order history page AND not on sign-in
+          if (!url.includes('/ap/signin') && !url.includes('/ap/mfa') &&
+              (url.includes('order-history') || url.includes('your-orders'))) {
+            // Verify there's actual order content, not just a redirect
+            const hasContent = await page.evaluate(() => {
+              const body = document.body?.innerText || '';
+              return body.includes('Order placed') || body.includes('order placed') ||
+                     body.includes('Orders placed') || body.includes('orders placed') ||
+                     body.includes('Buy it again') || body.includes('Your Orders') ||
+                     body.includes('0 orders') || body.includes('past');
+            });
+            if (hasContent) {
+              log('Login successful!');
+              loginDetected = true;
+              break;
+            }
           }
-        } else {
-          log('ERROR: Not logged in. Run with --login first, or set AMAZON_PASSWORD env var.');
-          await browser.close();
-          process.exit(1);
+        } catch (e) {
+          // Page navigating
+        }
+        if (i > 0 && i % 20 === 0) {
+          const remaining = Math.round((100 - i) * 3 / 60);
+          log(`Still waiting for login... (~${remaining} min remaining)`);
         }
       }
+
+      if (!loginDetected) {
+        log('ERROR: Login not detected within timeout. Please try again.');
+        await browser.close();
+        process.exit(1);
+      }
     } else {
-      log('Already logged in.');
+      log('Already logged in to Amazon.');
     }
 
     // Scrape order history
@@ -768,15 +828,24 @@ async function main() {
       process.exit(1);
     }
 
-    log(`\nScraped ${orders.length} orders total`);
+    // Deduplicate orders (same orders can appear across year pages)
+    const seenOrderIds = new Set();
+    const uniqueOrders = [];
+    for (const order of orders) {
+      const key = order.orderId || `${order.orderDate}-${order.items.length}`;
+      if (seenOrderIds.has(key)) continue;
+      seenOrderIds.add(key);
+      uniqueOrders.push(order);
+    }
+    log(`\nScraped ${orders.length} raw orders, ${uniqueOrders.length} unique`);
 
     // Count total items across all orders
-    const totalItems = orders.reduce((s, o) => s + o.items.length, 0);
+    const totalItems = uniqueOrders.reduce((s, o) => s + o.items.length, 0);
     log(`Total order items found: ${totalItems}`);
 
     // Analyze and match to S&S items
     log('\nAnalyzing orders...');
-    const analysis = analyzeOrders(orders, knownAsins);
+    const analysis = analyzeOrders(uniqueOrders, knownAsins);
 
     const matchedItems = Object.keys(analysis).length;
     const deletionCandidates = Object.values(analysis).filter(a => a.deletionCandidate).length;
@@ -788,7 +857,7 @@ async function main() {
     for (const [id, data] of Object.entries(analysis)) {
       const flag = data.deletionCandidate ? ' *** DELETION CANDIDATE ***' : '';
       log(`  Item ${id} (${data.itemName}):`);
-      log(`    Orders: ${data.orderCount} | Avg interval: ${data.avgInterval || '?'} days | Subscribed: every ${data.subscribedFreqDays || '?'} days`);
+      log(`    Orders: ${data.orderCount} | Avg interval: ${data.avgIntervalDays || '?'} days | Subscribed: every ${data.subscribedFreqDays || '?'} days`);
       log(`    Last ordered: ${data.lastOrdered} (${data.daysSinceLast} days ago) | Total spent: $${data.totalSpent}${flag}`);
       if (data.deletionReason) log(`    Reason: ${data.deletionReason}`);
     }
@@ -800,22 +869,59 @@ async function main() {
       for (const name of unmatchedIds) log(`  - ${name}`);
     }
 
-    // Save to Firebase
+    // Save to Firebase (incremental merge — preserves existing data)
     if (!dryRun && db) {
       log('\nSaving to Firebase...');
-      await db.ref('orderHistory').set(analysis);
-      log('Saved order history analysis to Firebase.');
 
-      // Also save raw order data for reference
-      await db.ref('rawOrders').set({
-        scrapeDate: new Date().toISOString(),
-        monthsBack,
-        orderCount: orders.length,
-        orders: orders.slice(0, 500), // limit to prevent massive writes
+      // Merge orderHistory — update() merges keys, preserving items not in this run
+      await db.ref('orderHistory').update(analysis);
+      log('Merged order history analysis into Firebase.');
+
+      // Save raw orders indexed by orderId for incremental accumulation
+      // Each run adds new orders without overwriting old ones
+      const rawOrderUpdates = {};
+      for (const order of uniqueOrders) {
+        if (order.orderId) {
+          rawOrderUpdates[order.orderId] = {
+            orderDate: order.orderDate,
+            items: order.items,
+            scrapedAt: new Date().toISOString(),
+          };
+        }
+      }
+      await db.ref('rawOrders/orders').update(rawOrderUpdates);
+      await db.ref('rawOrders/meta').set({
+        lastScrapeDate: new Date().toISOString(),
+        lastMonthsBack: monthsBack,
+        totalOrdersThisRun: uniqueOrders.length,
       });
-      log('Saved raw order data to Firebase.');
+      log(`Saved ${Object.keys(rawOrderUpdates).length} raw orders to Firebase (incremental).`);
+
+      // Store historical prices per item per date for price pattern analysis
+      // This accumulates over time — never overwrites past entries
+      const priceUpdates = {};
+      for (const [itemId, data] of Object.entries(analysis)) {
+        for (const order of data.orders) {
+          if (order.date && order.price) {
+            const dateKey = order.date.replace(/-/g, '');
+            if (!priceUpdates[itemId]) priceUpdates[itemId] = {};
+            priceUpdates[itemId][dateKey] = {
+              price: order.price,
+              orderId: order.orderId,
+            };
+          }
+        }
+      }
+      if (Object.keys(priceUpdates).length > 0) {
+        for (const [itemId, dates] of Object.entries(priceUpdates)) {
+          await db.ref(`orderPriceHistory/${itemId}`).update(dates);
+        }
+        log('Saved order price history for pattern analysis.');
+      } else {
+        log('No prices found in orders to save (price extraction may need fixing).');
+      }
     } else if (dryRun) {
-      log('\n[dry-run] Would save to Firebase: orderHistory + rawOrders');
+      log('\n[dry-run] Would merge into Firebase: orderHistory + rawOrders + orderPriceHistory');
     }
 
   } catch (err) {

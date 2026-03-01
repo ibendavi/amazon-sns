@@ -1,0 +1,3 @@
+@echo off
+echo Launching Costco scraper Chrome (port 9222)...
+"C:\Program Files\Google\Chrome\Application\chrome.exe" --remote-debugging-port=9222 --user-data-dir="%LOCALAPPDATA%\Google\Chrome\Costco Scraper" --no-first-run

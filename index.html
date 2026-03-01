@@ -189,7 +189,7 @@
 </head>
 <body>
   <div class="header-row">
-    <h1>Amazon Subscribe & Save</h1>
+    <h1><span style="display:inline-block;transform:rotate(180deg);margin-right:2px">🙂</span> Amazon Subscribe & Save</h1>
     <span class="sync-dot" id="syncDot" title="Offline"></span>
   </div>
   <div class="subtitle">March 10, 2026 Delivery &mdash; <span id="itemCount">44</span> items</div>
@@ -210,7 +210,7 @@
   <!-- Price Alerts -->
   <div class="alerts-section" id="alertsSection" style="display:none"></div>
 
-  <!-- Frequency Recommendations -->
+  <!-- Frequency Mismatches (hidden) -->
   <div class="freq-recs" id="freqRecs" style="display:none"></div>
 
   <!-- Implementation Progress -->
@@ -223,7 +223,7 @@
   <div class="controls">
     <button onclick="selectAll()">Select All</button>
     <button onclick="deselectAll()">Deselect All</button>
-    <button id="sortBtn" onclick="toggleSortMode()">Smart Sort</button>
+    <!-- Sort is always by urgency (most likely to order first) -->
     <button class="primary" onclick="saveSelections()">Save</button>
     <button class="danger" onclick="showImplementModal()">Implement</button>
     <input type="text" class="search" placeholder="Filter items..." oninput="filterItems(this.value)">
@@ -369,17 +369,18 @@
       if (!oh || !oh.lastOrdered || !oh.avgIntervalDays) {
         // Fallback: frequency-based
         const m = parseFreqMonths(item.freq);
-        if (m <= 1) return { score: 0.9, label: 'Due soon', tier: 'due-soon' };
-        if (m <= 3) return { score: 0.5, label: 'Maybe', tier: 'maybe' };
-        return { score: 0.2, label: 'Stock OK', tier: 'stock-ok' };
+        if (m <= 1) return { score: 0.9, label: 'Order', tier: 'due-soon' };
+        if (m <= 3) return { score: 0.5, label: 'Review', tier: 'maybe' };
+        return { score: 0.2, label: 'Skip', tier: 'stock-ok' };
       }
 
-      const daysSinceLast = oh.daysSinceLast || Math.round((Date.now() - new Date(oh.lastOrdered).getTime()) / 86400000);
+      // Recompute daysSinceLast from live date (Firebase value may be stale)
+      const daysSinceLast = Math.round((Date.now() - new Date(oh.lastOrdered).getTime()) / 86400000);
       const score = daysSinceLast / oh.avgIntervalDays;
 
-      if (score >= 0.8) return { score, label: 'Due soon', tier: 'due-soon' };
-      if (score >= 0.5) return { score, label: 'Maybe', tier: 'maybe' };
-      return { score, label: 'Stock OK', tier: 'stock-ok' };
+      if (score >= 0.8) return { score, label: 'Order', tier: 'due-soon' };
+      if (score >= 0.5) return { score, label: 'Review', tier: 'maybe' };
+      return { score, label: 'Skip', tier: 'stock-ok' };
     }
 
     function predictNextDate(item) {
@@ -396,6 +397,43 @@
       if (!d) return '';
       const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
       return months[d.getMonth()] + ' ' + d.getDate();
+    }
+
+    // ========== Auto-Forecast & Pre-Selection ==========
+    /**
+     * Automatically selects items predicted to be needed based on order history.
+     * Called when orderHistory loads from Firebase.
+     * Items with urgency >= 0.8 (due soon) are checked; others unchecked.
+     * User's manual overrides are preserved via localStorage flag.
+     */
+    function autoForecastSelections() {
+      // Check if user has manually edited selections since last forecast
+      const lastForecast = localStorage.getItem('sns-last-forecast');
+      const now = new Date().toISOString().slice(0, 10);
+
+      // Only auto-forecast once per day (user edits persist within the day)
+      if (lastForecast === now) return;
+
+      let changed = false;
+      for (const item of items) {
+        const urg = computeUrgency(item);
+        const shouldSelect = urg.score >= 0.8; // "Likely Needed" threshold
+        if (state[item.id] !== shouldSelect) {
+          state[item.id] = shouldSelect;
+          changed = true;
+        }
+      }
+
+      if (changed) {
+        saveState();
+        if (firebaseReady) {
+          const u = {};
+          items.forEach(i => { u[i.id] = state[i.id] || false; });
+          selectionsRef.set(u);
+        }
+        localStorage.setItem('sns-last-forecast', now);
+        renderAll();
+      }
     }
 
     // ========== Firebase ==========
@@ -515,6 +553,7 @@
             const data = snapshot.val();
             if (!data) return;
             orderHistory = data;
+            autoForecastSelections();
             renderAll();
           });
 
@@ -622,7 +661,7 @@
     let priceHistory = {};
     let alerts = {};
     let implementStatus = {};
-    let sortMode = 'frequency'; // 'frequency' or 'urgency'
+    let sortMode = 'urgency'; // 'frequency' or 'urgency'
 
     window.addEventListener('hashchange', () => {
       state = loadState();
@@ -655,8 +694,9 @@
         const rec = buildRecommendation(item, allAlts);
         if (rec && rec.action !== 'keep') {
           const pd = priceData[item.id];
-          const currentUP = pd?.computedUnitPriceNum || null;
-          const currentUnit = pd?.computedUnit || null;
+          const dashAmazonUP = parseAmazonUnitPrice(pd?.unitPrice);
+          const currentUP = pd?.computedUnitPriceNum || (dashAmazonUP ? dashAmazonUP.value : null);
+          const currentUnit = pd?.computedUnit || (dashAmazonUP ? dashAmazonUP.label : null);
           const currentPrice = parseFloat(item.price.replace('$', '')) || null;
           const freqMonths = parseFreqMonths(item.freq);
           if (freqMonths === Infinity) return;
@@ -709,53 +749,50 @@
       if (body.classList.contains('open')) renderDashboard();
     }
 
-    // ========== Frequency Optimizer ==========
-    function computeFreqRecommendations() {
-      const recs = [];
-      items.forEach(item => {
-        const oh = orderHistory[item.id];
-        if (!oh || !oh.avgIntervalDays || oh.orderCount < 3) return;
-        const freqDays = parseFreqDays(item.freq);
-        if (!freqDays) return;
-
-        const ratio = oh.avgIntervalDays / freqDays;
-        if (ratio >= 1.4) {
-          // Item is being used slower than subscribed frequency
-          const suggestedMonths = Math.round(oh.avgIntervalDays / 30);
-          const currentMonths = parseFreqMonths(item.freq);
-          if (suggestedMonths > currentMonths) {
-            const monthlyCost = totalCost(item) / currentMonths;
-            const newMonthlyCost = totalCost(item) / suggestedMonths;
-            const annualSavings = (monthlyCost - newMonthlyCost) * 12;
-            recs.push({
-              itemId: item.id,
-              itemName: item.name,
-              currentFreq: item.freq,
-              suggestedFreq: `${suggestedMonths} month${suggestedMonths > 1 ? 's' : ''}`,
-              avgInterval: oh.avgIntervalDays,
-              annualSavings,
-            });
-          }
-        }
-      });
-      return recs.sort((a, b) => b.annualSavings - a.annualSavings);
-    }
-
-    function renderFreqRecommendations() {
-      const recs = computeFreqRecommendations();
+    // ========== Forecast Summary ==========
+    function renderForecastSummary() {
       const section = document.getElementById('freqRecs');
-      if (recs.length === 0) {
+
+      // Find items where predicted frequency differs significantly from S&S setting
+      const mismatches = [];
+      for (const item of items) {
+        const oh = orderHistory[item.id];
+        if (!oh || !oh.avgIntervalDays) continue;
+        const subDays = parseFreqDays(item.freq);
+        if (!subDays) continue;
+        const actual = oh.avgIntervalDays;
+        const diff = actual - subDays;
+        // Flag if >30% mismatch
+        if (Math.abs(diff) > subDays * 0.3) {
+          const predictedFreq = actual < 25 ? '~' + actual + ' days'
+            : actual < 50 ? '~' + Math.round(actual / 7) + ' weeks'
+            : '~' + Math.round(actual / 30) + ' months';
+          mismatches.push({ item, actual, subDays, predictedFreq, diff });
+        }
+      }
+
+      if (mismatches.length === 0) {
         section.style.display = 'none';
         return;
       }
+
+      // Sort by biggest mismatch first
+      mismatches.sort((a, b) => Math.abs(b.diff) - Math.abs(a.diff));
+
       section.style.display = 'block';
-      section.innerHTML = '<h3>Frequency Recommendations</h3>' + recs.map(r => `
-        <div class="freq-rec-card">
-          <div class="rec-title">${r.itemName}</div>
-          <div class="rec-detail">Switch from every ${r.currentFreq} to every ${r.suggestedFreq} &mdash; you only use it every ~${r.avgInterval} days</div>
-          <div class="rec-savings">Saves ~$${r.annualSavings.toFixed(0)}/year</div>
-        </div>
-      `).join('');
+      section.innerHTML = `
+        <h3>Frequency Mismatches (${mismatches.length})</h3>
+        ${mismatches.slice(0, 5).map(m => {
+          const action = m.diff > 0 ? 'Slow down' : 'Speed up';
+          const savingsNote = m.diff > 0
+            ? `You use this every ${m.predictedFreq} but S&S delivers every ${m.item.freq}. Consider switching to a longer interval.`
+            : `You use this every ${m.predictedFreq} but S&S delivers every ${m.item.freq}. Consider switching to a shorter interval.`;
+          return `<div class="freq-rec-card">
+            <div class="rec-title">${action}: ${m.item.name.substring(0, 50)}</div>
+            <div class="rec-detail">${savingsNote}</div>
+          </div>`;
+        }).join('')}
+      `;
     }
 
     // ========== Price Alerts ==========
@@ -780,13 +817,18 @@
       const all = [];
       const pd = priceData[item.id];
       const currentUnit = pd?.computedUnit || null; // e.g. "roll", "oz", "can"
+      // Fallback: parse Amazon's own unit price string (e.g. "$1.58/100 Sheets")
+      const currentAmazonUP = !currentUnit ? parseAmazonUnitPrice(pd?.unitPrice) : null;
 
       // Amazon alternatives from priceData
       if (item.alternatives) {
         item.alternatives.forEach(alt => {
           // Prefer our computed unit price (same unit system as current item)
-          // over Amazon's scraped unit price (which may use different units)
           const hasMatchingUnit = alt.computedUnit && alt.computedUnit === currentUnit;
+          // Fallback: Amazon's own unit prices match (e.g. both "100 Sheets")
+          const altAmazonUP = !hasMatchingUnit && currentAmazonUP ? parseAmazonUnitPrice(alt.unitPrice) : null;
+          const amazonUnitsMatch = altAmazonUP && currentAmazonUP && altAmazonUP.label === currentAmazonUP.label;
+
           const displayUnitPrice = hasMatchingUnit
             ? alt.computedUnitPrice
             : (alt.computedUnitPrice || alt.unitPrice || '');
@@ -795,9 +837,10 @@
             ...alt,
             store: 'amazon',
             priceNum: parseFloat((alt.price || '').replace('$', '')) || null,
-            // Only set comparable unit price when units match
-            comparableUnitPrice: hasMatchingUnit ? alt.computedUnitPriceNum : null,
-            comparableUnit: hasMatchingUnit ? alt.computedUnit : null,
+            comparableUnitPrice: hasMatchingUnit ? alt.computedUnitPriceNum
+              : (amazonUnitsMatch ? altAmazonUP.value : null),
+            comparableUnit: hasMatchingUnit ? alt.computedUnit
+              : (amazonUnitsMatch ? currentAmazonUP.label : null),
             displayUnitPrice,
           });
         });
@@ -839,10 +882,19 @@
       return m ? parseFloat(m[1]) : null;
     }
 
+    // Parse Amazon unit price strings like "$1.58/100 Sheets" → { value: 1.58, label: "100 Sheets" }
+    function parseAmazonUnitPrice(str) {
+      if (!str) return null;
+      const m = String(str).match(/\$?([\d.]+)\s*\/\s*(.+)/);
+      if (!m) return null;
+      return { value: parseFloat(m[1]), label: m[2].trim().toLowerCase() };
+    }
+
     function findBestValue(alts, currentItem) {
       const pd = priceData[currentItem.id];
-      const currentUnit = pd?.computedUnit || null;
-      const currentComparableUnitPrice = pd?.computedUnitPriceNum || null;
+      const currentAmazonUP = parseAmazonUnitPrice(pd?.unitPrice);
+      const currentUnit = pd?.computedUnit || (currentAmazonUP ? currentAmazonUP.label : null);
+      const currentComparableUnitPrice = pd?.computedUnitPriceNum || (currentAmazonUP ? currentAmazonUP.value : null);
       const currentPrice = parseFloat(currentItem.price.replace('$', '')) || null;
       // Item has a unit concept if it has computedUnit OR Amazon's own unitPrice
       const hasUnitConcept = currentUnit || pd?.unitPrice;
@@ -898,8 +950,9 @@
       const currentPrice = parseFloat(item.price.replace('$', '')) || null;
       if (!currentPrice && !pd?.computedUnitPriceNum) return null;
 
-      const currentUnit = pd?.computedUnit || null;
-      const currentUP = pd?.computedUnitPriceNum || null;
+      const currentAmazonUP = parseAmazonUnitPrice(pd?.unitPrice);
+      const currentUnit = pd?.computedUnit || (currentAmazonUP ? currentAmazonUP.label : null);
+      const currentUP = pd?.computedUnitPriceNum || (currentAmazonUP ? currentAmazonUP.value : null);
       // Item has a unit concept if it has computedUnit OR Amazon's own unitPrice
       const hasUnitConcept = currentUnit || pd?.unitPrice;
       const freqMonths = parseFreqMonths(item.freq);
@@ -1043,7 +1096,7 @@
 
     function renderAll() {
       renderDashboard();
-      renderFreqRecommendations();
+      // renderForecastSummary(); // disabled — freq mismatches shown inline per item
       renderDeletionCandidates();
       renderAlerts();
       renderItems(currentFilter());
@@ -1061,7 +1114,7 @@
     }
 
     function urgencyGroupLabel(tier) {
-      return { 'due-soon': 'Likely Needed', 'maybe': 'Maybe Needed', 'stock-ok': 'Not Yet' }[tier] || 'Other';
+      return { 'due-soon': 'Order Now', 'maybe': 'Review', 'stock-ok': 'Skip' }[tier] || 'Other';
     }
 
     function renderItems(filter = '') {
@@ -1145,14 +1198,15 @@
           if (trend.is52wLow) trendHtml += ' <span class="week52-low">52-wk Low</span>';
         }
 
-        // Order history badge
+        // Order history badge — show days since last order + avg interval
         const oh = orderHistory[item.id];
         let histBadge = '';
-        if (oh) {
-          const interval = oh.avgIntervalDays ? `~${oh.avgIntervalDays}d avg` : '';
-          const lastDate = oh.lastOrdered ? formatShortDate(new Date(oh.lastOrdered)) : '?';
-          const title = `${oh.orderCount} orders, last ${lastDate}, avg interval ${oh.avgIntervalDays || '?'} days, total $${oh.totalSpent}`;
-          histBadge = `<span class="history-badge" title="${title}">${oh.orderCount} orders${interval ? ' / ' + interval : ''}</span>`;
+        if (oh && oh.lastOrdered) {
+          const daysSince = Math.round((Date.now() - new Date(oh.lastOrdered).getTime()) / 86400000);
+          const interval = oh.avgIntervalDays ? `every ~${oh.avgIntervalDays}d` : '';
+          const lastDate = formatShortDate(new Date(oh.lastOrdered));
+          const title = `${oh.orderCount} orders, last ${lastDate}, avg interval ${oh.avgIntervalDays || '?'} days`;
+          histBadge = `<span class="history-badge" title="${title}">${daysSince}d ago${interval ? ' / ' + interval : ''}</span>`;
         }
 
         // Bulk buy suggestion from priceData
@@ -1214,24 +1268,24 @@
             const currentPrice = parseFloat(item.price.replace('$', ''));
             const pd = priceData[item.id];
             let savingsHtml = '';
-            if (alt.comparableUnitPrice && pd?.computedUnitPriceNum) {
-              // Same-unit comparison
-              const diff = pd.computedUnitPriceNum - alt.comparableUnitPrice;
+            const dispAmazonUP = parseAmazonUnitPrice(pd?.unitPrice);
+            const dispCurrentUP = pd?.computedUnitPriceNum || (dispAmazonUP ? dispAmazonUP.value : null);
+            const dispCurrentUnit = pd?.computedUnit || (dispAmazonUP ? dispAmazonUP.label : null);
+            if (alt.comparableUnitPrice && dispCurrentUP) {
+              // Same-unit comparison (computed or Amazon unit price)
+              const diff = dispCurrentUP - alt.comparableUnitPrice;
               const unit = alt.comparableUnit;
               if (diff > 0.005) savingsHtml = `<div class="alt-savings">$${diff.toFixed(2)}/${unit} cheaper</div>`;
               else if (diff < -0.005) savingsHtml = `<div class="alt-savings more-expensive">$${Math.abs(diff).toFixed(2)}/${unit} more</div>`;
             } else if (alt.priceNum && currentPrice) {
               // Total price comparison — only valid when no unit data (same product type)
-              const currentHasUnit = pd?.computedUnit || pd?.unitPrice;
-              if (currentHasUnit && !alt.comparableUnit) {
-                // Can't compare: different quantities. Show warning instead of misleading savings.
-                savingsHtml = `<div class="alt-savings" style="color:#999">Can't compare — different size</div>`;
-              } else {
-                const diff = currentPrice - alt.priceNum;
-                if (Math.abs(diff) > 0.01) {
-                  if (diff > 0) savingsHtml = `<div class="alt-savings">$${diff.toFixed(2)} less</div>`;
-                  else savingsHtml = `<div class="alt-savings more-expensive">$${Math.abs(diff).toFixed(2)} more</div>`;
-                }
+              const sizeWarning = (dispCurrentUnit && !alt.comparableUnit) ? ' <span style="color:#999;font-weight:normal">(different size)</span>' : '';
+              const diff = currentPrice - alt.priceNum;
+              if (Math.abs(diff) > 0.01) {
+                if (diff > 0) savingsHtml = `<div class="alt-savings">$${diff.toFixed(2)} less${sizeWarning}</div>`;
+                else savingsHtml = `<div class="alt-savings more-expensive">$${Math.abs(diff).toFixed(2)} more${sizeWarning}</div>`;
+              } else if (sizeWarning) {
+                savingsHtml = `<div class="alt-savings" style="color:#999">Similar price (different size)</div>`;
               }
             }
 
@@ -1296,7 +1350,19 @@
           <div class="item-details">
             <div class="item-name">${itemAsins[item.id] ? '<a href="https://www.amazon.com/dp/' + itemAsins[item.id] + '" target="_blank" style="color:inherit">' + item.name + '</a>' : item.name}${prefHtml}${isCancelled ? '<span class="cancel-label">Pending cancellation</span>' : ''}</div>
             <div class="item-meta">
-              ${item.freq ? 'Every ' + item.freq : ''}${item.qty > 1 ? ' &middot; Qty: ' + item.qty : ''}
+              ${(() => {
+                const oh = orderHistory[item.id];
+                if (oh && oh.avgIntervalDays) {
+                  const days = oh.avgIntervalDays;
+                  const predictedFreq = days < 25 ? 'Every ~' + days + ' days'
+                    : days < 50 ? 'Every ~' + Math.round(days / 7) + ' weeks'
+                    : 'Every ~' + Math.round(days / 30) + ' months';
+                  const subFreqDays = parseFreqDays(item.freq);
+                  const mismatch = subFreqDays && Math.abs(days - subFreqDays) > subFreqDays * 0.3;
+                  return predictedFreq + (mismatch ? ' <span style="color:#c62828;font-size:0.7rem" title="S&S set to ' + item.freq + '">(S&S: ' + item.freq + ')</span>' : '');
+                }
+                return item.freq ? 'Every ' + item.freq : '';
+              })()}${item.qty > 1 ? ' &middot; Qty: ' + item.qty : ''}
               ${urgBadge} ${nextDateHtml} ${noteHtml} ${badgeHtml} ${unitPriceHtml} ${couponHtml} ${trendHtml} ${histBadge}
             </div>
             ${bulkHtml}

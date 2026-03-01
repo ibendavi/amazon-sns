@@ -715,24 +715,191 @@ export class WalmartScraper extends BaseScraper {
   }
 }
 
-// ========== Costco Scraper (Stub) ==========
+// ========== Costco Scraper ==========
+// Uses Costco's internal APIs:
+//   1. Typeahead API (gdx-api.costco.com) → product names, IDs, images
+//   2. GraphQL API (ecom-api.costco.com) → prices (requires member login)
+//
+// First-time setup: run `node competitor-scraper.mjs --costco-login`
+// to log into costco.com and save session to browser profile.
+
+// Costco uses CDP (Chrome DevTools Protocol) to connect to user's real Chrome.
+// Chrome must be launched with --remote-debugging-port=9222.
+// Run launch-chrome-debug.bat first, then log into Costco in that browser.
+const CDP_ENDPOINT = 'http://127.0.0.1:9222';
 
 export class CostcoScraper extends BaseScraper {
   constructor(browserContext) {
     super('costco', browserContext);
+    this._graphqlHeaders = null;
+    this._graphqlQueryTemplate = null;
+    this._initialized = false;
   }
 
   async init() {
-    // No page needed for stub
+    this.page = await this.browserContext.newPage();
+
+    // Load Costco homepage to check session
+    log(`  [costco] Loading homepage to verify session...`);
+    await this.page.goto('https://www.costco.com/', { waitUntil: 'domcontentloaded', timeout: 45000 });
+    await randomDelay(2000, 3000);
+
+    // Check if logged in — on Costco's new MUI site, logged-in shows "Account" instead of "Sign In"
+    const isLoggedIn = await this.page.evaluate(() => {
+      const headerText = document.querySelector('header')?.innerText || '';
+      return !headerText.includes('Sign In') || headerText.includes('Sign Out') || headerText.includes('Account');
+    });
+
+    if (!isLoggedIn) {
+      log(`  [costco] NOT logged in — run: node competitor-scraper.mjs --costco-login`);
+      this._initialized = false;
+      return;
+    }
+
+    log(`  [costco] Logged in as Costco member`);
+    this._initialized = true;
   }
 
-  async close() {
-    // Nothing to close
+  async scrapeItem(item) {
+    if (!this._initialized) {
+      log(`  [costco] Skipping "${item.searchTerm}" — not logged in`);
+      return null;
+    }
+
+    let result = null;
+    try {
+      result = await this._scrapeSearch(item);
+    } catch (err) {
+      log(`  [costco] First attempt failed: ${err.message}`);
+    }
+
+    if (!result) {
+      try {
+        log(`  [costco] Retrying "${item.searchTerm}" after delay...`);
+        await randomDelay(4000, 8000);
+        result = await this._scrapeSearch(item);
+      } catch (err) {
+        log(`  [costco] Retry failed: ${err.message}`);
+      }
+    }
+
+    return result;
   }
 
-  async scrapeItem(/* item */) {
-    log(`  [costco] Costco scraper requires membership credentials — skipping`);
-    return null;
+  async _scrapeSearch(item) {
+    const searchUrl = `https://www.costco.com/s?keyword=${encodeURIComponent(item.searchTerm)}`;
+    await this.page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 45000 });
+    await randomDelay(4000, 7000);
+
+    // Wait for product grid to load (MUI-based layout)
+    try {
+      await this.page.waitForSelector('.MuiGrid2-root .MuiBox-root', { timeout: 10000 });
+    } catch {
+      log(`  [costco] No product grid found for "${item.searchTerm}"`);
+      return null;
+    }
+
+    // Extract product cards from DOM
+    const results = await this.page.evaluate(() => {
+      // Product cards are in MuiGrid2 cells with xs-3 (4 per row)
+      const cards = document.querySelectorAll('.MuiGrid2-grid-xs-3');
+      const out = [];
+      for (let i = 0; i < Math.min(cards.length, 8); i++) {
+        const card = cards[i];
+        const text = card.textContent || '';
+
+        // Product name — in the link text
+        const nameLink = card.querySelector('a[href*="/p/"], a[href*=".product."]');
+        let name = '';
+        if (nameLink) {
+          // Get the visible span text (not hidden accessibility text)
+          const spans = nameLink.querySelectorAll('span');
+          for (const s of spans) {
+            const t = s.textContent.trim();
+            if (t.length > 10 && !t.startsWith('$')) { name = t; break; }
+          }
+          if (!name) name = nameLink.textContent.trim();
+        }
+
+        // Price — look for the price div
+        const priceEl = card.querySelector('.MuiTypography-t5, [class*="price"]');
+        let priceText = priceEl ? priceEl.textContent.trim() : '';
+        if (!priceText) {
+          const match = text.match(/\$[\d,]+\.\d{2}/);
+          if (match) priceText = match[0];
+        }
+
+        // URL
+        let url = '';
+        if (nameLink) {
+          const href = nameLink.getAttribute('href') || '';
+          url = href.startsWith('http') ? href : 'https://www.costco.com' + href;
+        }
+
+        // Image
+        const img = card.querySelector('img[src*="costco"], img[src*="images"]');
+        const image = img ? (img.getAttribute('src') || '') : '';
+
+        if (name || priceText) {
+          out.push({ name: name.substring(0, 200), priceText, url, image });
+        }
+      }
+      return out;
+    });
+
+    if (!results || results.length === 0) {
+      log(`  [costco] No product cards found for "${item.searchTerm}"`);
+      return null;
+    }
+
+    // Pick best result using relevance
+    const searchWords = item.searchTerm.toLowerCase().split(/\s+/).filter(w => w.length > 2 && !/^\d+$/.test(w));
+    function isRelevant(name) {
+      const nameLower = (name || '').toLowerCase();
+      const threshold = Math.min(2, searchWords.length);
+      const matches = searchWords.filter(w => nameLower.includes(w)).length;
+      return matches >= threshold;
+    }
+
+    let bestResult = null;
+    // Pass 1: relevant + has extractable unit price
+    for (const r of results) {
+      const pv = parsePrice(r.priceText);
+      if (!pv || !r.name) continue;
+      if (!isRelevant(r.name)) continue;
+      const computed = computeUnitPrice(r.name, pv);
+      if (computed) {
+        bestResult = r;
+        log(`  [costco] Picked: "${r.name.slice(0, 60)}..." (${computed.count} ${computed.unit}s)`);
+        break;
+      }
+    }
+    // Pass 2: relevant but no extractable unit
+    if (!bestResult) {
+      bestResult = results.find(r => parsePrice(r.priceText) && r.name && isRelevant(r.name));
+    }
+    // Pass 3: first card with a price
+    if (!bestResult) {
+      bestResult = results.find(r => parsePrice(r.priceText) && r.name);
+    }
+
+    if (!bestResult || !bestResult.priceText) {
+      log(`  [costco] No priced result for "${item.searchTerm}"`);
+      return null;
+    }
+
+    const priceVal = parsePrice(bestResult.priceText);
+    if (!priceVal) return null;
+
+    return {
+      name: bestResult.name.slice(0, 200),
+      price: priceVal,
+      unitPrice: null,
+      unit: null,
+      url: bestResult.url || searchUrl,
+      image: bestResult.image || '',
+      lastChecked: new Date().toISOString(),
+    };
   }
 }
 
@@ -785,9 +952,67 @@ const STORE_REGISTRY = {
 
 // ========== Main ==========
 
+async function costcoLogin() {
+  log('=== Costco Member Login ===');
+  log('Connecting to Chrome via CDP on port 9222...');
+  log('Make sure Chrome is running with: launch-chrome-debug.bat');
+
+  let browser;
+  try {
+    browser = await chromium.connectOverCDP(CDP_ENDPOINT);
+  } catch (e) {
+    log(`ERROR: Could not connect to Chrome on port 9222.`);
+    log(`Please run launch-chrome-debug.bat first, then try again.`);
+    return;
+  }
+
+  const context = browser.contexts()[0];
+  const page = await context.newPage();
+
+  await page.goto('https://www.costco.com/LogonForm', { waitUntil: 'domcontentloaded', timeout: 30000 });
+  log('Costco login page opened in Chrome. Please log in...');
+
+  // Wait up to 5 minutes for user to log in
+  // Detection: navigate to homepage and check for Sign In absence (not just Sign Out presence)
+  for (let i = 0; i < 150; i++) {
+    await new Promise(r => setTimeout(r, 2000));
+    const url = page.url();
+    // Don't check until they leave the signin page
+    if (url.includes('signin.costco.com') || url.includes('LogonForm')) {
+      if (i % 15 === 0 && i > 0) log(`Still waiting for login... (${300 - i * 2}s remaining)`);
+      continue;
+    }
+    // Redirected away from login — verify on homepage
+    await page.goto('https://www.costco.com/', { waitUntil: 'networkidle', timeout: 30000 });
+    await new Promise(r => setTimeout(r, 2000));
+    const loggedIn = await page.evaluate(() => {
+      const headerText = document.querySelector('header')?.innerText || '';
+      // Logged in: header shows "Sign Out" or "Hi, Name" instead of "Sign In"
+      return !headerText.includes('Sign In') || headerText.includes('Sign Out') || headerText.includes('Hi,');
+    });
+    if (loggedIn) {
+      log('Login successful! Session saved in Chrome.');
+      await page.close();
+      await browser.close(); // disconnect CDP, Chrome stays open
+      return;
+    }
+    if (i % 15 === 0 && i > 0) log(`Still waiting for login... (${300 - i * 2}s remaining)`);
+  }
+
+  log('Login timeout — try again with --costco-login');
+  await page.close();
+  await browser.close();
+}
+
 async function main() {
   const args = process.argv.slice(2);
   const dryRun = args.includes('--dry-run');
+
+  // Handle Costco login mode
+  if (args.includes('--costco-login')) {
+    await costcoLogin();
+    process.exit(0);
+  }
 
   const storeArgIdx = args.indexOf('--store');
   const storeFilter = storeArgIdx >= 0 ? args[storeArgIdx + 1]?.toLowerCase() : null;
@@ -826,16 +1051,14 @@ async function main() {
   // Check if any active (non-stub) scrapers are selected
   const activeStores = storeKeys.filter(k => {
     const entry = STORE_REGISTRY[k];
-    return entry.cls !== CostcoScraper && entry.cls !== SamsClubScraper;
+    return entry.cls !== SamsClubScraper;
   });
   const stubStores = storeKeys.filter(k => !activeStores.includes(k));
 
   // Log stubs immediately
   for (const key of stubStores) {
     const entry = STORE_REGISTRY[key];
-    if (entry.cls === CostcoScraper) {
-      log(`[costco] Costco scraper requires membership credentials — skipping all items`);
-    } else if (entry.cls === SamsClubScraper) {
+    if (entry.cls === SamsClubScraper) {
       log(`[samsclub] Sam's Club scraper — membership inactive, skipping all items`);
     }
   }
@@ -846,19 +1069,49 @@ async function main() {
     process.exit(0);
   }
 
-  // Launch browser
-  const browser = await chromium.launchPersistentContext(BROWSER_PROFILE_DIR, {
-    headless: true,
-    viewport: { width: 1366, height: 768 },
-    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-    locale: 'en-US',
-  });
+  // Launch browser for Target/Walmart
+  const nonCostcoStores = activeStores.filter(k => k !== 'costco');
+  let hasCostco = activeStores.includes('costco');
+
+  let browser = null;
+  if (nonCostcoStores.length > 0) {
+    browser = await chromium.launchPersistentContext(BROWSER_PROFILE_DIR, {
+      headless: true,
+      viewport: { width: 1366, height: 768 },
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+      locale: 'en-US',
+    });
+  }
+
+  // Connect to Chrome via CDP for Costco (Chrome must be running with --remote-debugging-port=9222)
+  let costcoBrowser = null;
+  if (hasCostco) {
+    try {
+      log(`  [costco] Connecting to Chrome via CDP on port 9222...`);
+      costcoBrowser = await chromium.connectOverCDP(CDP_ENDPOINT);
+      log(`  [costco] Connected to Chrome via CDP`);
+    } catch (e) {
+      log(`  [costco] ERROR: Could not connect to Chrome on port 9222.`);
+      log(`  [costco] Please run launch-chrome-debug.bat first, then log into Costco.`);
+      log(`  [costco] Error: ${e.message.split('\n')[0]}`);
+      hasCostco = false;
+    }
+  }
 
   // Initialize scrapers
   const scrapers = {};
-  for (const key of activeStores) {
+  const storesWithScrapers = hasCostco ? activeStores : activeStores.filter(k => k !== 'costco');
+  for (const key of storesWithScrapers) {
     const entry = STORE_REGISTRY[key];
-    scrapers[key] = new entry.cls(browser);
+    let ctx;
+    if (key === 'costco') {
+      // CDP connection: use the first browser context (user's default profile)
+      ctx = costcoBrowser?.contexts()?.[0] || null;
+    } else {
+      ctx = browser;
+    }
+    if (!ctx) { log(`Skipping ${entry.label} — no browser context`); continue; }
+    scrapers[key] = new entry.cls(ctx);
     await scrapers[key].init();
     log(`Initialized ${entry.label} scraper`);
   }
@@ -928,7 +1181,11 @@ async function main() {
   for (const storeKey of activeStores) {
     await scrapers[storeKey].close();
   }
-  await browser.close();
+  if (browser) await browser.close();
+  if (costcoBrowser) {
+    // CDP close() disconnects without killing Chrome — user keeps their browser
+    await costcoBrowser.close();
+  }
 
   log(`\n=== Done: ${successCount} prices found, ${skipCount} not found, ${errorCount} errors ===`);
   process.exit(errorCount > 0 ? 1 : 0);
