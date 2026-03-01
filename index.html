@@ -207,6 +207,9 @@
     </div>
   </div>
 
+  <!-- Resub Opportunities -->
+  <div class="alerts-section" id="resubSection" style="display:none"></div>
+
   <!-- Price Alerts -->
   <div class="alerts-section" id="alertsSection" style="display:none"></div>
 
@@ -847,6 +850,41 @@
       `).join('');
     }
 
+    // ========== Resub Opportunities ==========
+    function renderResubOpportunities() {
+      const section = document.getElementById('resubSection');
+      const opps = [];
+      for (const item of items) {
+        const pd = priceData[item.id];
+        if (!pd || !pd.snsPrice || !pd.resubPrice) continue;
+        const savings = pd.snsPrice - pd.resubPrice;
+        if (savings > 0.05) {
+          opps.push({ item, current: pd.snsPrice, resub: pd.resubPrice, savings });
+        }
+      }
+      if (opps.length === 0) {
+        section.style.display = 'none';
+        return;
+      }
+      opps.sort((a, b) => b.savings * b.item.qty - a.savings * a.item.qty);
+      const totalSavings = opps.reduce((s, o) => s + o.savings * o.item.qty, 0);
+      section.style.display = 'block';
+      section.innerHTML = `
+        <div class="alert-card" style="border-left:4px solid #FF9900;background:#fff8e1">
+          <div class="alert-title" style="color:#FF9900">Resub Opportunities &mdash; save $${totalSavings.toFixed(2)}/delivery</div>
+          <div class="alert-detail">These items are cheaper if you unsubscribe and resubscribe:</div>
+          ${opps.map(o => {
+            const asin = itemAsins[o.item.id];
+            const link = asin ? `<a href="https://www.amazon.com/dp/${asin}" target="_blank" style="color:inherit">${o.item.name}</a>` : o.item.name;
+            return `<div style="margin:6px 0;font-size:0.85rem">
+              ${link}: <strong>$${o.current.toFixed(2)}</strong> &rarr; <strong style="color:#1e7e34">$${o.resub.toFixed(2)}</strong>
+              (save $${o.savings.toFixed(2)}${o.item.qty > 1 ? ' x' + o.item.qty + ' = $' + (o.savings * o.item.qty).toFixed(2) : ''})
+            </div>`;
+          }).join('')}
+        </div>
+      `;
+    }
+
     // ========== Competitor + All Alternatives ==========
     function getAllAlternatives(item) {
       const all = [];
@@ -1133,6 +1171,7 @@
       renderDashboard();
       // renderForecastSummary(); // disabled — freq mismatches shown inline per item
       renderDeletionCandidates();
+      renderResubOpportunities();
       renderAlerts();
       renderItems(currentFilter());
     }

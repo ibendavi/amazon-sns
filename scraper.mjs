@@ -759,6 +759,16 @@ async function main() {
 
   const page = await browser.newPage();
 
+  // Incognito context for checking "new subscriber" prices
+  // (not logged in = shows what a new subscriber would pay)
+  const incognitoBrowser = await chromium.launch({ headless: true });
+  const incognitoCtx = await incognitoBrowser.newContext({
+    viewport: { width: 1366, height: 768 },
+    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+    locale: 'en-US',
+  });
+  const incognitoPage = await incognitoCtx.newPage();
+
   let successCount = 0;
   let errorCount = 0;
 
@@ -824,10 +834,30 @@ async function main() {
         if (cheapestAlt) cheapestAlt.recommended = true;
       }
 
+      // Check "new subscriber" price in incognito (not logged in)
+      let resubPrice = null;
+      try {
+        const incognitoResult = await scrapeProductPage(incognitoPage, asin);
+        resubPrice = incognitoResult.snsPrice;
+        if (resubPrice && priceResult.snsPrice) {
+          const diff = priceResult.snsPrice - resubPrice;
+          if (diff > 0.05) {
+            log(`  ** RESUB OPPORTUNITY: Current $${priceResult.snsPrice.toFixed(2)} → New sub $${resubPrice.toFixed(2)} (save $${diff.toFixed(2)})`);
+          } else if (diff < -0.05) {
+            log(`  Current price is BETTER: $${priceResult.snsPrice.toFixed(2)} vs new sub $${resubPrice.toFixed(2)}`);
+          } else {
+            log(`  Resub price: same ($${resubPrice.toFixed(2)})`);
+          }
+        }
+      } catch (err) {
+        log(`  Could not check resub price: ${err.message}`);
+      }
+
       // Build data object
       const data = {
         snsPrice: priceResult.snsPrice,
         oneTimePrice: priceResult.oneTimePrice,
+        resubPrice,
         savingsPct: priceResult.savingsPct,
         unitPrice: priceResult.unitPrice,
         computedUnitPrice: computed ? computed.formatted : null,
@@ -866,6 +896,7 @@ async function main() {
     }
   }
 
+  await incognitoBrowser.close();
   await browser.close();
 
   log(`\n=== Done: ${successCount} succeeded, ${errorCount} failed ===`);
