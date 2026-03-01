@@ -667,7 +667,7 @@
               const pctSaving = unitDiff / currentUP;
               potentialSavings += pctSaving * (currentPrice || 0) * item.qty * (12 / freqMonths);
             }
-          } else if (!currentUnit && rec.alt.priceNum && currentPrice && rec.alt.priceNum < currentPrice) {
+          } else if (!currentUnit && !pd?.unitPrice && rec.alt.priceNum && currentPrice && rec.alt.priceNum < currentPrice) {
             potentialSavings += (currentPrice - rec.alt.priceNum) * item.qty * (12 / freqMonths);
           }
         }
@@ -844,6 +844,8 @@
       const currentUnit = pd?.computedUnit || null;
       const currentComparableUnitPrice = pd?.computedUnitPriceNum || null;
       const currentPrice = parseFloat(currentItem.price.replace('$', '')) || null;
+      // Item has a unit concept if it has computedUnit OR Amazon's own unitPrice
+      const hasUnitConcept = currentUnit || pd?.unitPrice;
 
       // Strategy 1: Compare by unit price (same unit only)
       const sameUnitAlts = alts.filter(a => a.comparableUnitPrice && a.comparableUnit === currentUnit);
@@ -856,14 +858,13 @@
             best = a;
           }
         }
-        // If current item has a computed unit, ONLY use unit-price comparison.
-        // Never fall back to total price — different quantities make it meaningless.
         return best; // null = current item is best per unit
       }
 
       // Strategy 2: Total price comparison — ONLY when no unit data exists at all.
-      // If current item has a computed unit but no alts matched, we can't compare fairly.
-      if (currentUnit) return null; // can't compare: we know the unit but no alt matches
+      // If the item has ANY unit info (computed or Amazon's own), total price comparison
+      // is invalid because competitors may be a completely different quantity.
+      if (hasUnitConcept) return null;
 
       if (!currentPrice) return null;
       let best = null;
@@ -899,6 +900,8 @@
 
       const currentUnit = pd?.computedUnit || null;
       const currentUP = pd?.computedUnitPriceNum || null;
+      // Item has a unit concept if it has computedUnit OR Amazon's own unitPrice
+      const hasUnitConcept = currentUnit || pd?.unitPrice;
       const freqMonths = parseFreqMonths(item.freq);
       const freqDays = parseFreqDays(item.freq);
 
@@ -922,8 +925,8 @@
           // Annual savings = (unit saving / current unit price) * current total price * orders/year
           const pctSaving = unitSavings / currentUP;
           annual = pctSaving * currentPrice * item.qty * (12 / freqMonths);
-        } else if (!currentUnit) {
-          // No unit data — total price comparison is valid (same product, different sellers)
+        } else if (!hasUnitConcept) {
+          // No unit data at all — total price comparison is valid (same product, different sellers)
           annual = computeAnnualSavings(currentPrice, alt.priceNum, item.qty, freqMonths);
         }
 
@@ -932,10 +935,10 @@
         if (annual !== null && annual < minSavings) continue;
 
         // Must actually be cheaper
-        // If current item has a computed unit, ONLY consider unit-price savings.
-        // Total price is meaningless when quantities differ (e.g., 12-pack vs 24-pack).
+        // If the item has ANY unit info, ONLY consider unit-price savings.
+        // Total price is meaningless when quantities differ (e.g., 4-roll vs 24-roll).
         let isCheaper = false;
-        if (currentUnit) {
+        if (hasUnitConcept) {
           // Unit-price comparison only
           isCheaper = unitSavings && unitSavings > 0.005;
         } else {
@@ -972,8 +975,8 @@
       let savingsText = '';
       if (best.unitSavings && best.unitSavings > 0.005) {
         savingsText = `$${best.unitSavings.toFixed(2)}/${bestAlt.comparableUnit} cheaper`;
-      } else if (!currentUnit && bestAlt.priceNum && currentPrice && currentPrice > bestAlt.priceNum) {
-        // Only show total-price savings when we have no unit data (same product comparison)
+      } else if (!hasUnitConcept && bestAlt.priceNum && currentPrice && currentPrice > bestAlt.priceNum) {
+        // Only show total-price savings when we have no unit data at all (same product comparison)
         savingsText = `$${(currentPrice - bestAlt.priceNum).toFixed(2)} less per order`;
       }
       if (best.annual && best.annual > 1) {
@@ -1219,7 +1222,7 @@
               else if (diff < -0.005) savingsHtml = `<div class="alt-savings more-expensive">$${Math.abs(diff).toFixed(2)}/${unit} more</div>`;
             } else if (alt.priceNum && currentPrice) {
               // Total price comparison — only valid when no unit data (same product type)
-              const currentHasUnit = pd?.computedUnit;
+              const currentHasUnit = pd?.computedUnit || pd?.unitPrice;
               if (currentHasUnit && !alt.comparableUnit) {
                 // Can't compare: different quantities. Show warning instead of misleading savings.
                 savingsHtml = `<div class="alt-savings" style="color:#999">Can't compare — different size</div>`;
@@ -1267,8 +1270,8 @@
             if (bestVal.comparableUnitPrice && pd?.computedUnitPriceNum) {
               const diff = pd.computedUnitPriceNum - bestVal.comparableUnitPrice;
               if (diff > 0) saveSummary = `, saves $${diff.toFixed(2)}/${bestVal.comparableUnit}`;
-            } else if (!pd?.computedUnit) {
-              // Only show total-price savings when no unit data (same product, different sellers)
+            } else if (!pd?.computedUnit && !pd?.unitPrice) {
+              // Only show total-price savings when no unit data at all
               const currentPrice = parseFloat(item.price.replace('$', ''));
               const saving = currentPrice ? (currentPrice - (bestVal.priceNum || 0)) : 0;
               if (saving > 0) saveSummary = `, saves $${saving.toFixed(2)}/order`;
