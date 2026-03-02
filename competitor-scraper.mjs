@@ -33,52 +33,35 @@ const BROWSER_PROFILE_DIR = resolve(__dirname, '.browser-profile-competitor');
 const TARGET_API_KEY = '9f36aeafbe60771e321a5cc';
 const TARGET_API_BASE = 'https://redsky.target.com/redsky_aggregations/v1/web/plp_search_v2';
 
-// Item catalog — same IDs as scraper.mjs
-const ITEMS = [
-  { id: 13, name: "Presto! Toilet Paper (24 Family Mega Rolls)", searchTerm: "toilet paper 24 mega rolls" },
-  { id: 43, name: "Lavazza Espresso Whole Bean Coffee (2-pack)", searchTerm: "Lavazza espresso whole bean coffee" },
-  { id: 32, name: "Purina Friskies Variety Pack Cat Food (40 cans)", searchTerm: "Friskies variety pack cat food 40 cans" },
-  { id: 18, name: "Purina Friskies Shreds Cat Food (24 cans)", searchTerm: "Friskies shreds cat food 24 cans" },
-  { id: 5,  name: "Presto! Paper Towels (12 Huge Rolls)", searchTerm: "paper towels 12 rolls" },
-  { id: 35, name: "Blue Diamond Dark Chocolate Almonds (25 oz)", searchTerm: "dark chocolate almonds 25 oz" },
-  { id: 10, name: "Purina Cat Chow Naturals Indoor (13 lb)", searchTerm: "Purina Cat Chow indoor 13 lb" },
-  { id: 20, name: "Terrasoul Organic Sunflower Seeds (2 lbs)", searchTerm: "organic sunflower seeds 2 lbs" },
-  { id: 31, name: "Happy Belly Roasted Almonds (24 oz)", searchTerm: "roasted almonds 24 oz" },
-  { id: 22, name: "Blue Diamond Wasabi & Soy Sauce Almonds (16 oz)", searchTerm: "wasabi soy sauce almonds" },
-  { id: 30, name: "Purina ONE Dog Food Beef & Salmon (27.5 lb)", searchTerm: "Purina ONE dog food beef salmon" },
-  { id: 29, name: "Har Bracha Tahini Paste (12 pack)", searchTerm: "tahini paste" },
-  { id: 3,  name: "Lavazza Super Crema Whole Bean Coffee (2.2 lb)", searchTerm: "Lavazza Super Crema coffee" },
-  { id: 1,  name: "Mucinex 12 Hour Maximum Strength 1200mg (48 tablets)", searchTerm: "Mucinex maximum strength 48 tablets" },
-  { id: 28, name: "PUREPLUS 9690 Refrigerator Water Filter (4 pack)", searchTerm: "refrigerator water filter" },
-  { id: 41, name: "Amazon Basics Liquid Hand Soap Refill (2-pack)", searchTerm: "liquid hand soap refill" },
-  { id: 33, name: "Downy CALM Mega Dryer Sheets Lavender (130 ct)", searchTerm: "Downy dryer sheets lavender" },
-  { id: 9,  name: "Hill's Prescription Diet t/d Cat Food (8.5 lb)", searchTerm: "Hill's Prescription Diet cat food" },
-  { id: 14, name: "Gillette Clinical Deodorant Cool Wave (3-pack)", searchTerm: "Gillette Clinical deodorant" },
-  { id: 40, name: "Endangered Species Dark Chocolate 88% (12 bars)", searchTerm: "dark chocolate 88% bars" },
-  { id: 26, name: "Triple Strength Fish Oil Omega 3 (180 softgels)", searchTerm: "fish oil omega 3 180 softgels" },
-  { id: 47, name: "Brawny Tear-A-Square Paper Towels (12 XL Rolls)", searchTerm: "Brawny paper towels 12 rolls" },
-  { id: 21, name: "Energizer Ultimate Lithium 9V (2 pack)", searchTerm: "Energizer lithium 9V batteries" },
-  { id: 27, name: "Vicks VapoShower Plus (12 count)", searchTerm: "Vicks VapoShower" },
-  { id: 39, name: "GUM Soft-Picks Advanced (90ct, 3-pack)", searchTerm: "GUM Soft-Picks" },
-  { id: 46, name: "Biotrue Contact Solution (10oz, 2-pack)", searchTerm: "Biotrue contact solution" },
-  { id: 25, name: "Scotch Magic Tape (6 rolls w/ dispensers)", searchTerm: "Scotch magic tape 6 rolls" },
-  { id: 45, name: "Gillette Clinical Deodorant Arctic Ice (2.6 oz)", searchTerm: "Gillette Clinical Arctic Ice deodorant" },
-  { id: 36, name: "Dr. Elsey's Ultra Unscented Cat Litter (40 lb)", searchTerm: "Dr Elsey's cat litter 40 lb" },
-  { id: 19, name: "Nautica Voyage EDT (6.7 oz)", searchTerm: "Nautica Voyage cologne" },
-  { id: 8,  name: "Nescafe Taster's Choice Instant Coffee (2x 7oz)", searchTerm: "Nescafe Taster's Choice instant coffee" },
-  { id: 12, name: "Sensodyne Pronamel Whitening Toothpaste (4-pack)", searchTerm: "Sensodyne Pronamel whitening toothpaste" },
-  { id: 7,  name: "Gillette ProGlide Razor Refills (8 count)", searchTerm: "Gillette ProGlide refills 8 count" },
-  { id: 15, name: "Lysol Disinfectant Wipes (4-pack)", searchTerm: "Lysol disinfectant wipes" },
-  { id: 6,  name: "Febreze AIR Linen & Sky (6-pack)", searchTerm: "Febreze air freshener" },
-  { id: 2,  name: "CeraVe Foaming Facial Cleanser (19 oz)", searchTerm: "CeraVe foaming facial cleanser" },
-  { id: 11, name: "Energizer 123 Lithium Batteries (6 pack)", searchTerm: "Energizer 123 lithium batteries" },
-  { id: 38, name: "Oral-B Glide Floss Pro-Health Mint (3-pack)", searchTerm: "Oral-B Glide floss" },
-  { id: 16, name: "O'Keeffe's Working Hands (3.4 oz)", searchTerm: "O'Keeffe's Working Hands cream" },
-  { id: 23, name: "Carlyle Melatonin 12mg (180 tablets)", searchTerm: "melatonin 12mg 180 tablets" },
-  { id: 34, name: "Dove White Peach Body Scrub (15 oz)", searchTerm: "Dove body scrub" },
-  { id: 4,  name: "Energizer 2032 Batteries (2 count)", searchTerm: "Energizer 2032 batteries" },
-  { id: 17, name: "Reynolds Quick Cut Plastic Wrap (225 sq ft)", searchTerm: "Reynolds plastic wrap" },
-];
+// Items are loaded dynamically from Firebase subscriptions node.
+// generateSearchTerm() creates a search-friendly term from the product name.
+function generateSearchTerm(name) {
+  // Remove "Amazon Brand -", "Amazon Basics", brand prefixes
+  let term = name
+    .replace(/Amazon Brand\s*-?\s*/gi, '')
+    .replace(/,\s*(Pack of \d+|Package May Vary).*$/i, '')  // trim trailing pack info
+    .replace(/\s*-\s*\d+\s*(Count|Pack|Rolls?|Bags?|Cans?)\s*$/i, '')  // trailing count
+    .replace(/\([^)]*\)/g, ' ')  // remove parenthetical info
+    .replace(/\s+/g, ' ')
+    .trim();
+  // Take first ~8 significant words for search (skip tiny words)
+  const words = term.split(' ').filter(w => w.length > 1);
+  return words.slice(0, 8).join(' ');
+}
+
+async function loadItemsFromFirebase(db) {
+  const snap = await db.ref('subscriptions').once('value');
+  const subs = snap.val();
+  if (!subs) {
+    log('ERROR: No subscriptions in Firebase. Run scraper.mjs first.');
+    return [];
+  }
+  return Object.entries(subs).map(([asin, sub]) => ({
+    id: asin,
+    name: sub.name || asin,
+    searchTerm: generateSearchTerm(sub.name || asin),
+  }));
+}
 
 // ========== Helpers ==========
 
@@ -150,6 +133,32 @@ const UNIT_MAPPINGS = {
   'melatonin': { unit: 'tablet', pattern: /(\d+)\s*tablets?/i },
 };
 
+function extractPackMultiplier(name, unitKeyword) {
+  // Detects "Pack of 2", "2-pack", "3 Pack", "2 Jars", "2 Bags", etc.
+  // Skips when the container word IS the unit being counted to avoid double-counting.
+  const patterns = [
+    { re: /\(?\s*pack\s*of\s*(\d+)\s*\)?/i, container: 'pack' },
+    { re: /(\d+)\s*-?\s*pack\b/i, container: 'pack' },
+    { re: /,\s*(\d+)\s*(jars?)\s*$/i, container: 'jar' },
+    { re: /,\s*(\d+)\s*(bags?)\s*$/i, container: 'bag' },
+    { re: /,\s*(\d+)\s*(bottles?)\s*$/i, container: 'bottle' },
+    { re: /,\s*(\d+)\s*(boxes?)\s*$/i, container: 'box' },
+    { re: /,\s*(\d+)\s*(tubes?)\s*$/i, container: 'tube' },
+    { re: /,\s*(\d+)\s*(cans?)\s*$/i, container: 'can' },
+    { re: /,\s*(\d+)\s*(sticks?)\s*$/i, container: 'stick' },
+  ];
+  const ukLower = (unitKeyword || '').toLowerCase();
+  for (const { re, container } of patterns) {
+    const m = name.match(re);
+    if (m) {
+      const n = parseInt(m[1]);
+      if (container !== 'pack' && ukLower.includes(container)) continue;
+      if (n >= 2 && n <= 24) return n;
+    }
+  }
+  return 1;
+}
+
 function computeUnitPrice(itemName, totalPrice) {
   if (!totalPrice || totalPrice <= 0) return null;
   const nameLower = itemName.toLowerCase();
@@ -169,6 +178,9 @@ function computeUnitPrice(itemName, totalPrice) {
     }
 
     if (!count || count <= 0) continue;
+
+    const packMult = extractPackMultiplier(itemName, keyword);
+    count *= packMult;
 
     const unitPrice = totalPrice / count;
     return {
@@ -723,9 +735,9 @@ export class WalmartScraper extends BaseScraper {
 // First-time setup: run `node competitor-scraper.mjs --costco-login`
 // to log into costco.com and save session to browser profile.
 
-// Costco uses CDP (Chrome DevTools Protocol) to connect to user's real Chrome.
-// Chrome must be launched with --remote-debugging-port=9222.
-// Run launch-chrome-debug.bat first, then log into Costco in that browser.
+const COSTCO_PROFILE_DIR = resolve(__dirname, '.browser-profile-costco');
+// Costco blocks Playwright browsers. Use CDP to connect to real Chrome instead.
+// Run launch-chrome-debug.bat first, log into Costco, then run the scraper.
 const CDP_ENDPOINT = 'http://127.0.0.1:9222';
 
 export class CostcoScraper extends BaseScraper {
@@ -739,12 +751,12 @@ export class CostcoScraper extends BaseScraper {
   async init() {
     this.page = await this.browserContext.newPage();
 
-    // Load Costco homepage to check session
+    // Load Costco homepage to check session (uses real Chrome via CDP)
     log(`  [costco] Loading homepage to verify session...`);
     await this.page.goto('https://www.costco.com/', { waitUntil: 'domcontentloaded', timeout: 45000 });
     await randomDelay(2000, 3000);
 
-    // Check if logged in — on Costco's new MUI site, logged-in shows "Account" instead of "Sign In"
+    // Check if logged in
     const isLoggedIn = await this.page.evaluate(() => {
       const headerText = document.querySelector('header')?.innerText || '';
       return !headerText.includes('Sign In') || headerText.includes('Sign Out') || headerText.includes('Account');
@@ -953,55 +965,42 @@ const STORE_REGISTRY = {
 // ========== Main ==========
 
 async function costcoLogin() {
-  log('=== Costco Member Login ===');
-  log('Connecting to Chrome via CDP on port 9222...');
-  log('Make sure Chrome is running with: launch-chrome-debug.bat');
+  log('=== Costco Login via Chrome CDP ===');
+  log('Step 1: Run launch-chrome-debug.bat (opens Chrome on port 9222)');
+  log('Step 2: Log into costco.com in that Chrome window');
+  log('Step 3: Run this command again — it will verify your session');
+  log('');
+  log('Connecting to Chrome on port 9222...');
 
   let browser;
   try {
     browser = await chromium.connectOverCDP(CDP_ENDPOINT);
   } catch (e) {
-    log(`ERROR: Could not connect to Chrome on port 9222.`);
-    log(`Please run launch-chrome-debug.bat first, then try again.`);
+    log('ERROR: Could not connect to Chrome on port 9222.');
+    log('Run launch-chrome-debug.bat first, then try again.');
     return;
   }
 
   const context = browser.contexts()[0];
   const page = await context.newPage();
+  await page.goto('https://www.costco.com/', { waitUntil: 'networkidle', timeout: 45000 });
+  await new Promise(r => setTimeout(r, 3000));
 
-  await page.goto('https://www.costco.com/LogonForm', { waitUntil: 'domcontentloaded', timeout: 30000 });
-  log('Costco login page opened in Chrome. Please log in...');
+  const isLoggedIn = await page.evaluate(() => {
+    const headerText = document.querySelector('header')?.innerText || '';
+    return !headerText.includes('Sign In') || headerText.includes('Sign Out') || headerText.includes('Account');
+  });
 
-  // Wait up to 5 minutes for user to log in
-  // Detection: navigate to homepage and check for Sign In absence (not just Sign Out presence)
-  for (let i = 0; i < 150; i++) {
-    await new Promise(r => setTimeout(r, 2000));
-    const url = page.url();
-    // Don't check until they leave the signin page
-    if (url.includes('signin.costco.com') || url.includes('LogonForm')) {
-      if (i % 15 === 0 && i > 0) log(`Still waiting for login... (${300 - i * 2}s remaining)`);
-      continue;
-    }
-    // Redirected away from login — verify on homepage
-    await page.goto('https://www.costco.com/', { waitUntil: 'networkidle', timeout: 30000 });
-    await new Promise(r => setTimeout(r, 2000));
-    const loggedIn = await page.evaluate(() => {
-      const headerText = document.querySelector('header')?.innerText || '';
-      // Logged in: header shows "Sign Out" or "Hi, Name" instead of "Sign In"
-      return !headerText.includes('Sign In') || headerText.includes('Sign Out') || headerText.includes('Hi,');
-    });
-    if (loggedIn) {
-      log('Login successful! Session saved in Chrome.');
-      await page.close();
-      await browser.close(); // disconnect CDP, Chrome stays open
-      return;
-    }
-    if (i % 15 === 0 && i > 0) log(`Still waiting for login... (${300 - i * 2}s remaining)`);
+  if (isLoggedIn) {
+    log('Costco session verified — you are logged in!');
+    log('The scraper will use this Chrome instance via CDP.');
+  } else {
+    log('NOT logged in yet. Please log into costco.com in the Chrome window,');
+    log('then run: node competitor-scraper.mjs --store costco');
   }
 
-  log('Login timeout — try again with --costco-login');
   await page.close();
-  await browser.close();
+  await browser.close(); // disconnects CDP, Chrome stays open
 }
 
 async function main() {
@@ -1018,7 +1017,7 @@ async function main() {
   const storeFilter = storeArgIdx >= 0 ? args[storeArgIdx + 1]?.toLowerCase() : null;
 
   const itemArgIdx = args.indexOf('--item');
-  const singleItemId = itemArgIdx >= 0 ? parseInt(args[itemArgIdx + 1]) : null;
+  const singleItemId = itemArgIdx >= 0 ? args[itemArgIdx + 1] : null; // ASIN string
 
   log('=== Competitor Price Scraper ===');
   if (dryRun) log('DRY RUN — will not write to Firebase');
@@ -1033,10 +1032,18 @@ async function main() {
   const storeKeys = storeFilter ? [storeFilter] : Object.keys(STORE_REGISTRY);
   log(`Stores: ${storeKeys.map(k => STORE_REGISTRY[k].label).join(', ')}`);
 
+  // Init Firebase (needed even in dry-run to load subscriptions)
+  const db = initFirebaseAdmin();
+
+  // Load items from Firebase subscriptions
+  const allItems = await loadItemsFromFirebase(db);
+  if (allItems.length === 0) process.exit(1);
+  log(`Loaded ${allItems.length} subscriptions from Firebase`);
+
   // Filter items if --item specified
   const itemsToScrape = singleItemId
-    ? ITEMS.filter(i => i.id === singleItemId)
-    : ITEMS;
+    ? allItems.filter(i => i.id === singleItemId)
+    : allItems;
 
   if (itemsToScrape.length === 0) {
     log(`ERROR: No item found with ID ${singleItemId}`);
@@ -1045,8 +1052,8 @@ async function main() {
 
   log(`Items: ${itemsToScrape.length}`);
 
-  // Init Firebase
-  const db = dryRun ? null : initFirebaseAdmin();
+  // For dry-run, don't write to Firebase (but we already have db for reading)
+  const writeDb = dryRun ? null : db;
 
   // Check if any active (non-stub) scrapers are selected
   const activeStores = storeKeys.filter(k => {
@@ -1069,11 +1076,12 @@ async function main() {
     process.exit(0);
   }
 
-  // Launch browser for Target/Walmart
-  const nonCostcoStores = activeStores.filter(k => k !== 'costco');
+  // Launch browsers — separate persistent profiles for each
+  let browser = null;  // Target/Walmart
+  let costcoBrowser = null;
   let hasCostco = activeStores.includes('costco');
+  const nonCostcoStores = activeStores.filter(k => k !== 'costco');
 
-  let browser = null;
   if (nonCostcoStores.length > 0) {
     browser = await chromium.launchPersistentContext(BROWSER_PROFILE_DIR, {
       headless: true,
@@ -1083,17 +1091,14 @@ async function main() {
     });
   }
 
-  // Connect to Chrome via CDP for Costco (Chrome must be running with --remote-debugging-port=9222)
-  let costcoBrowser = null;
   if (hasCostco) {
     try {
       log(`  [costco] Connecting to Chrome via CDP on port 9222...`);
       costcoBrowser = await chromium.connectOverCDP(CDP_ENDPOINT);
-      log(`  [costco] Connected to Chrome via CDP`);
+      log(`  [costco] Connected to Chrome`);
     } catch (e) {
-      log(`  [costco] ERROR: Could not connect to Chrome on port 9222.`);
-      log(`  [costco] Please run launch-chrome-debug.bat first, then log into Costco.`);
-      log(`  [costco] Error: ${e.message.split('\n')[0]}`);
+      log(`  [costco] Chrome not running on port 9222.`);
+      log(`  [costco] Run launch-chrome-debug.bat, log into costco.com, then retry.`);
       hasCostco = false;
     }
   }
@@ -1103,13 +1108,7 @@ async function main() {
   const storesWithScrapers = hasCostco ? activeStores : activeStores.filter(k => k !== 'costco');
   for (const key of storesWithScrapers) {
     const entry = STORE_REGISTRY[key];
-    let ctx;
-    if (key === 'costco') {
-      // CDP connection: use the first browser context (user's default profile)
-      ctx = costcoBrowser?.contexts()?.[0] || null;
-    } else {
-      ctx = browser;
-    }
+    const ctx = key === 'costco' ? costcoBrowser?.contexts()?.[0] : browser;
     if (!ctx) { log(`Skipping ${entry.label} — no browser context`); continue; }
     scrapers[key] = new entry.cls(ctx);
     await scrapers[key].init();
@@ -1121,7 +1120,7 @@ async function main() {
   let skipCount = 0;
 
   for (const item of itemsToScrape) {
-    log(`\n--- Item ${item.id}: ${item.name} ---`);
+    log(`\n--- ${item.id}: ${item.name.substring(0, 60)} ---`);
 
     for (const storeKey of activeStores) {
       const scraper = scrapers[storeKey];
@@ -1148,7 +1147,7 @@ async function main() {
           }
 
           if (!dryRun) {
-            await saveCompetitorPrice(db, item.id, storeKey, result);
+            await saveCompetitorPrice(writeDb, item.id, storeKey, result);
             log(`  [${storeKey}] Saved to Firebase`);
           } else {
             log(`  [${storeKey}] [dry-run] Would save: ${JSON.stringify(result).slice(0, 200)}`);
@@ -1183,8 +1182,7 @@ async function main() {
   }
   if (browser) await browser.close();
   if (costcoBrowser) {
-    // CDP close() disconnects without killing Chrome — user keeps their browser
-    await costcoBrowser.close();
+    await costcoBrowser.close(); // disconnects CDP, Chrome stays open
   }
 
   log(`\n=== Done: ${successCount} prices found, ${skipCount} not found, ${errorCount} errors ===`);

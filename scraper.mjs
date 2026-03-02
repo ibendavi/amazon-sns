@@ -77,6 +77,35 @@ const UNIT_MAPPINGS = {
   'melatonin': { unit: 'tablet', pattern: /(\d+)\s*tablets?/i },
 };
 
+function extractPackMultiplier(name, unitKeyword) {
+  // Detects "Pack of 2", "2-pack", "3 Pack", "2 Jars", "2 Bags", etc.
+  // unitKeyword: the UNIT_MAPPINGS key that matched, so we skip when the
+  // container word IS the unit being counted (e.g. "24 cans" for cat food
+  // where cans are already counted by UNIT_MAPPINGS).
+  const patterns = [
+    { re: /\(?\s*pack\s*of\s*(\d+)\s*\)?/i, container: 'pack' },
+    { re: /(\d+)\s*-?\s*pack\b/i, container: 'pack' },
+    { re: /,\s*(\d+)\s*(jars?)\s*$/i, container: 'jar' },
+    { re: /,\s*(\d+)\s*(bags?)\s*$/i, container: 'bag' },
+    { re: /,\s*(\d+)\s*(bottles?)\s*$/i, container: 'bottle' },
+    { re: /,\s*(\d+)\s*(boxes?)\s*$/i, container: 'box' },
+    { re: /,\s*(\d+)\s*(tubes?)\s*$/i, container: 'tube' },
+    { re: /,\s*(\d+)\s*(cans?)\s*$/i, container: 'can' },
+    { re: /,\s*(\d+)\s*(sticks?)\s*$/i, container: 'stick' },
+  ];
+  const ukLower = (unitKeyword || '').toLowerCase();
+  for (const { re, container } of patterns) {
+    const m = name.match(re);
+    if (m) {
+      const n = parseInt(m[1]);
+      // Skip if the container word matches the unit keyword (avoids double-counting)
+      if (container !== 'pack' && ukLower.includes(container)) continue;
+      if (n >= 2 && n <= 24) return n;
+    }
+  }
+  return 1;
+}
+
 function computeUnitPrice(itemName, totalPrice) {
   if (!totalPrice || totalPrice <= 0) return null;
   const nameLower = itemName.toLowerCase();
@@ -96,6 +125,10 @@ function computeUnitPrice(itemName, totalPrice) {
     }
 
     if (!count || count <= 0) continue;
+
+    // Check for pack multiplier (e.g. "2.2 lb Bag (Pack of 2)" → 2 × 2.2 lb)
+    const packMult = extractPackMultiplier(itemName, keyword);
+    count *= packMult;
 
     const unitPrice = totalPrice / count;
     return {
